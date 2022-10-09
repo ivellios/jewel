@@ -53,3 +53,28 @@ class GameInterface(abc.ABC):
             "notes": self.notes,
             "genres": self.genres if self.genres else list(),
         }
+
+
+class SteamGameInterface(abc.ABC):
+    appid: str
+    name: str
+    description: str | None
+    platforms: list | None
+    metacritic: int | None
+    metacritic_url: str | None
+    categories: list[str] | None
+    genres: list[str] | None
+    recommendations: int | None
+
+    def to_dict(self):
+        return {
+            "appid": self.appid,
+            "name": self.name,
+            "description": self.description,
+            "platforms": self.platforms,
+            "metacritic": self.metacritic,
+            "metacritic_url": self.metacritic_url,
+            "categories": self.categories,
+            "genres": self.genres,
+            "recommendations": self.recommendations,
+        }
