@@ -82,13 +82,7 @@ def test_added_values(input_value, output_value):
 
 @pytest.mark.parametrize(
     "input_value,output_value",
-    [
-        (True, True),
-        (False, False),
-        ("Some Bad Date", None),
-        ("", None),
-        ("4", True)
-    ],
+    [(True, True), (False, False), ("Some Bad Date", None), ("", None), ("4", True)],
 )
 def test_controller_suppoer_values(input_value, output_value):
     # given
