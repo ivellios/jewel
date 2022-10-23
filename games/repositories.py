@@ -36,7 +36,11 @@ class DjangoGameRepository(GameRepository):
     @staticmethod
     def create_source(game_on_platform_model: GameOnPlatform, source: str):
         vendor, created = Vendor.objects.get_or_create(name=source)
-        if not game_on_platform_model.source or game_on_platform_model.source.pk != vendor.pk or created:
+        if (
+            not game_on_platform_model.source
+            or game_on_platform_model.source.pk != vendor.pk
+            or created
+        ):
             game_on_platform_model.source = vendor
             game_on_platform_model.save(update_fields=["source"])
 

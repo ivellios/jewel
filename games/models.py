@@ -109,4 +109,3 @@ class GameOnPlatform(models.Model):
     )
     added = models.DateField(null=True, blank=True)
     source = models.ForeignKey(Vendor, on_delete=models.SET_NULL, null=True, blank=True)
-
