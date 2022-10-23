@@ -16,3 +16,22 @@ Python/Django application for storing and processing games library
 
 The code is formatted using the black library.
 
+# Loading data
+
+## Loading games
+
+```shell
+$ ./manage.py load_csv_data data.csv
+```
+
+## Loading Steam games data
+
+```shell
+$ ./manage.py load_steam_library
+```
+
+## Matching games with Steam and pulling more details
+
+```shell
+$ ./manage.py pull_steam_data
+```
