@@ -4,7 +4,6 @@ import requests
 from django.core.management import BaseCommand
 from tqdm import tqdm
 
-from steam.models import SteamGame
 from steam.repositories import SteamGamesRepository
 
 logger = logging.getLogger(__name__)

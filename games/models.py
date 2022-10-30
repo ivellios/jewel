@@ -3,8 +3,6 @@ import uuid
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.db import models
 
-from abstract.games import GameInterface
-
 
 class NamedModel(models.Model):
     name = models.CharField(max_length=100)

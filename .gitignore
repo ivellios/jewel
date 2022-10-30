@@ -129,3 +129,6 @@ dmypy.json
 .pyre/
 data.csv
 db.sqlite3
+
+.DS_Store
+.idea/
