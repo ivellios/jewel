@@ -8,17 +8,26 @@ class PlatformSerializer(serializers.ModelSerializer):
         model = Platform
         fields = ["id", "name"]
 
+    def validate_name(self, value):
+        return value.strip() if value else value
+
 
 class GenreSerializer(serializers.ModelSerializer):
     class Meta:
         model = Genre
         fields = ["id", "name"]
 
+    def validate_name(self, value):
+        return value.strip() if value else value
+
 
 class VendorSerializer(serializers.ModelSerializer):
     class Meta:
         model = Vendor
         fields = ["id", "name"]
+
+    def validate_name(self, value):
+        return value.strip() if value else value
 
 
 class GameOnPlatformSerializer(serializers.ModelSerializer):
@@ -61,7 +70,7 @@ class GameCreateSerializer(serializers.ModelSerializer):
         model = Game
         fields = [
             "title",
-            "platform_id", 
+            "platform_id",
             "vendor_id",
             "added",
             "price",
@@ -73,6 +82,12 @@ class GameCreateSerializer(serializers.ModelSerializer):
             "review",
             "notes",
         ]
+
+    def validate_title(self, value):
+        return value.strip() if value else value
+
+    def validate_notes(self, value):
+        return value.strip() if value else value
 
     def validate_platform_id(self, value):
         try:
@@ -89,10 +104,10 @@ class GameCreateSerializer(serializers.ModelSerializer):
         return value
 
     def create(self, validated_data):
-        platform_id = validated_data.pop('platform_id')
-        vendor_id = validated_data.pop('vendor_id')
-        added = validated_data.pop('added', timezone.now().date())
-        price = validated_data.pop('price')
+        platform_id = validated_data.pop("platform_id")
+        vendor_id = validated_data.pop("vendor_id")
+        added = validated_data.pop("added", timezone.now().date())
+        price = validated_data.pop("price")
 
         # Create the game
         game = Game.objects.create(**validated_data)
@@ -103,7 +118,7 @@ class GameCreateSerializer(serializers.ModelSerializer):
             platform_id=platform_id,
             source_id=vendor_id,
             added=added,
-            price=price
+            price=price,
         )
 
         return game

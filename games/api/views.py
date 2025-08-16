@@ -2,7 +2,12 @@ from rest_framework import generics
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.filters import SearchFilter
 from ..models import Game, Platform, Vendor
-from .serializers import GameSerializer, PlatformSerializer, VendorSerializer, GameCreateSerializer
+from .serializers import (
+    GameSerializer,
+    PlatformSerializer,
+    VendorSerializer,
+    GameCreateSerializer,
+)
 from .authentication import APITokenAuthentication
 
 
@@ -28,7 +33,7 @@ class GameListCreateAPIView(generics.ListCreateAPIView):
     search_fields = ["title"]
 
     def get_serializer_class(self):
-        if self.request.method == 'POST':
+        if self.request.method == "POST":
             return GameCreateSerializer
         return GameSerializer
 

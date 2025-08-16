@@ -113,7 +113,7 @@ class GameListCreateAPIViewTestCase(GameAPITestCase):
             "platform_id": self.platform1.id,
             "vendor_id": self.vendor1.id,
             "price": "29.99",
-            "added": "2023-01-01"
+            "added": "2023-01-01",
         }
         response = self.client.post(url, data, **self._get_auth_headers())
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
@@ -125,7 +125,7 @@ class GameListCreateAPIViewTestCase(GameAPITestCase):
             "title": "Another Game",
             "platform_id": self.platform1.id,
             "vendor_id": self.vendor1.id,
-            "price": "39.99"
+            "price": "39.99",
         }
         response = self.client.post(url, data, **self._get_auth_headers())
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
@@ -138,7 +138,7 @@ class GameListCreateAPIViewTestCase(GameAPITestCase):
             "title": "Invalid Game",
             "platform_id": 999,
             "vendor_id": self.vendor1.id,
-            "price": "29.99"
+            "price": "29.99",
         }
         response = self.client.post(url, data, **self._get_auth_headers())
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
@@ -150,7 +150,7 @@ class GameListCreateAPIViewTestCase(GameAPITestCase):
             "title": "Invalid Game",
             "platform_id": self.platform1.id,
             "vendor_id": 999,
-            "price": "29.99"
+            "price": "29.99",
         }
         response = self.client.post(url, data, **self._get_auth_headers())
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
@@ -164,6 +164,31 @@ class GameListCreateAPIViewTestCase(GameAPITestCase):
         self.assertIn("platform_id", response.data)
         self.assertIn("vendor_id", response.data)
         self.assertIn("price", response.data)
+
+    def test_create_game_trims_title_whitespace(self):
+        url = reverse("game-list-create-api")
+        data = {
+            "title": "  Trimmed Game  ",
+            "platform_id": self.platform1.id,
+            "vendor_id": self.vendor1.id,
+            "price": "29.99",
+        }
+        response = self.client.post(url, data, **self._get_auth_headers())
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data["title"], "Trimmed Game")
+
+    def test_create_game_trims_notes_whitespace(self):
+        url = reverse("game-list-create-api")
+        data = {
+            "title": "Notes Game",
+            "platform_id": self.platform1.id,
+            "vendor_id": self.vendor1.id,
+            "price": "29.99",
+            "notes": "  These are some notes  ",
+        }
+        response = self.client.post(url, data, **self._get_auth_headers())
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data["notes"], "These are some notes")
 
 
 class GameDetailAPIViewTestCase(GameAPITestCase):
@@ -209,26 +234,22 @@ class GameDetailAPIViewTestCase(GameAPITestCase):
 
 class APITokenAuthenticationTestCase(GameAPITestCase):
     def test_auth_with_bearer_token(self):
-        """Test authentication with Bearer token in header"""
-        url = reverse("game-list-api")
+        url = reverse("game-list-create-api")
         response = self.client.get(url, **self._get_auth_headers())
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
     def test_auth_with_url_parameter(self):
-        """Test authentication with token in URL parameter"""
-        url = reverse("game-list-api")
+        url = reverse("game-list-create-api")
         response = self.client.get(url, {"api_token": settings.API_TOKEN})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
     def test_auth_with_invalid_token_fails(self):
-        """Test that invalid token returns 403"""
-        url = reverse("game-list-api")
+        url = reverse("game-list-create-api")
         response = self.client.get(url, HTTP_AUTHORIZATION="Bearer invalid-token")
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_auth_with_wrong_token_type_fails(self):
-        """Test that wrong token type returns 403"""
-        url = reverse("game-list-api")
+        url = reverse("game-list-create-api")
         response = self.client.get(
             url, HTTP_AUTHORIZATION=f"Token {settings.API_TOKEN}"
         )
