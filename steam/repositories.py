@@ -31,7 +31,6 @@ class SteamGamesRepository:
             try:
                 game = SteamGame.objects.get(appid=max_ratio_game)
             except SteamGame.MultipleObjectsReturned as e:
-                print(f"More than one result for: {max_ratio_game}")
                 return None, 0
 
         return game, max_ratio
