@@ -9,6 +9,7 @@ dependencies = [
     "django-extensions==3.2.1",
     "django-filter==22.1",
     "djangorestframework==3.14.0",
+    "factory-boy>=3.3.0",
     "fuzzywuzzy>=0.18.0",
     "ipdb==0.13.9",
     "ipython==8.5.0",

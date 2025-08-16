@@ -61,8 +61,8 @@ class GameSerializer(serializers.ModelSerializer):
 
 
 class GameCreateSerializer(serializers.ModelSerializer):
-    platform_id = serializers.IntegerField(write_only=True)
-    vendor_id = serializers.IntegerField(write_only=True)
+    platform_name = serializers.CharField(max_length=100, write_only=True)
+    vendor_name = serializers.CharField(max_length=100, write_only=True)
     added = serializers.DateField(required=False, write_only=True)
     price = serializers.DecimalField(max_digits=6, decimal_places=2, write_only=True)
 
@@ -70,8 +70,8 @@ class GameCreateSerializer(serializers.ModelSerializer):
         model = Game
         fields = [
             "title",
-            "platform_id",
-            "vendor_id",
+            "platform_name",
+            "vendor_name",
             "added",
             "price",
             "play_priority",
@@ -89,25 +89,27 @@ class GameCreateSerializer(serializers.ModelSerializer):
     def validate_notes(self, value):
         return value.strip() if value else value
 
-    def validate_platform_id(self, value):
-        try:
-            Platform.objects.get(id=value)
-        except Platform.DoesNotExist:
-            raise serializers.ValidationError("Platform with this ID does not exist.")
-        return value
+    def validate_platform_name(self, value):
+        return value.strip() if value else value
 
-    def validate_vendor_id(self, value):
-        try:
-            Vendor.objects.get(id=value)
-        except Vendor.DoesNotExist:
-            raise serializers.ValidationError("Vendor with this ID does not exist.")
-        return value
+    def validate_vendor_name(self, value):
+        return value.strip() if value else value
 
     def create(self, validated_data):
-        platform_id = validated_data.pop("platform_id")
-        vendor_id = validated_data.pop("vendor_id")
+        platform_name = validated_data.pop("platform_name")
+        vendor_name = validated_data.pop("vendor_name")
         added = validated_data.pop("added", timezone.now().date())
         price = validated_data.pop("price")
+
+        # Get or create platform with case-insensitive lookup
+        platform = Platform.objects.filter(name__iexact=platform_name).first()
+        if not platform:
+            platform = Platform.objects.create(name=platform_name)
+
+        # Get or create vendor with case-insensitive lookup
+        vendor = Vendor.objects.filter(name__iexact=vendor_name).first()
+        if not vendor:
+            vendor = Vendor.objects.create(name=vendor_name)
 
         # Create the game
         game = Game.objects.create(**validated_data)
@@ -115,8 +117,8 @@ class GameCreateSerializer(serializers.ModelSerializer):
         # Create the GameOnPlatform relationship
         GameOnPlatform.objects.create(
             game=game,
-            platform_id=platform_id,
-            source_id=vendor_id,
+            platform=platform,
+            source=vendor,
             added=added,
             price=price,
         )
