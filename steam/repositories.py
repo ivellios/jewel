@@ -1,10 +1,10 @@
 import requests
+from fuzzywuzzy import fuzz
 
 from abstract.games import SteamGameInterface
+
 from .adapters import SteamGameAdapter
 from .models import SteamGame
-from fuzzywuzzy import fuzz
-from fuzzywuzzy import process
 
 
 class SteamGamesRepository:
@@ -30,8 +30,7 @@ class SteamGamesRepository:
                     max_ratio_game = game.appid
             try:
                 game = SteamGame.objects.get(appid=max_ratio_game)
-            except SteamGame.MultipleObjectsReturned as e:
-                print(f"More than one result for: {max_ratio_game}")
+            except SteamGame.MultipleObjectsReturned:
                 return None, 0
 
         return game, max_ratio

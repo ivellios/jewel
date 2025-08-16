@@ -1,7 +1,6 @@
 from django.contrib import admin
 
-from games.models import Game, Platform, Vendor, Genre
-
+from games.models import Game, Genre, Platform, Vendor
 
 # Register your models here.
 

@@ -2,7 +2,7 @@ import uuid
 
 from abstract.games import GameInterface, GameOnPlatformInterface
 from abstract.repositories import GameRepository
-from games.models import Game, Genre, GameOnPlatform, Platform, Vendor
+from games.models import Game, GameOnPlatform, Genre, Platform, Vendor
 
 
 class DjangoGameRepository(GameRepository):
@@ -10,7 +10,6 @@ class DjangoGameRepository(GameRepository):
     def create_game_on_platforms(
         game_model: Game, platforms: list[GameOnPlatformInterface]
     ):
-
         for platform_game in platforms:
             platform_model, created = Platform.objects.get_or_create(
                 name=platform_game.platform.name
@@ -46,7 +45,6 @@ class DjangoGameRepository(GameRepository):
 
     @staticmethod
     def create_game_model(game: GameInterface, data: dict) -> Game:
-
         if game.id:
             game_model = Game.objects.get(pk=game.id)
             created = False
@@ -95,5 +93,5 @@ class DjangoGameRepository(GameRepository):
         try:
             game = Game.objects.get(id=identifier)
             game.delete()
-        except Game.DoesNotExist:
-            raise ValueError("No game with this ID")
+        except Game.DoesNotExist as err:
+            raise ValueError("No game with this ID") from err

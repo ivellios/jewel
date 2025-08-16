@@ -1,4 +1,5 @@
 from abstract.games import SteamGameInterface
+
 from .models import SteamGame
 
 

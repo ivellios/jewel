@@ -3,6 +3,7 @@ import pandas
 from tqdm import tqdm
 
 from abstract.repositories import GameRepository
+
 from .adapters import CSVGameAdapter
 
 

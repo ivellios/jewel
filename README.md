@@ -80,10 +80,10 @@ uv run manage.py load_steam_library
 
 **With Docker:**
 ```shell
-docker compose exec web uv run manage.py pull_steam_data
+docker compose exec web uv run manage.py match_steam_games
 ```
 
 **Without Docker:**
 ```shell
-uv run manage.py pull_steam_data
+uv run manage.py match_steam_games
 ```

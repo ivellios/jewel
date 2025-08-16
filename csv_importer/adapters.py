@@ -2,7 +2,7 @@ from datetime import datetime
 
 from price_parser import Price
 
-from abstract.games import GameInterface, PlatformInterface, GameOnPlatformInterface
+from abstract.games import GameInterface, GameOnPlatformInterface, PlatformInterface
 
 
 class CSVPlatformAdapter(PlatformInterface):

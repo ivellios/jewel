@@ -1,9 +1,4 @@
-import datetime
-
 from django.db import models
-
-from abstract.games import SteamGameInterface
-
 
 # Create your models here.
 
