@@ -1,10 +1,13 @@
 from django.conf import settings
 from django.contrib.auth.models import User
 from django.urls import reverse
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase
+from decimal import Decimal
+from uuid import uuid4
 
-from ...models import Game
+from ...models import Game, Platform, Vendor, GameOnPlatform
 
 
 class GameAPITestCase(APITestCase):
@@ -17,6 +20,12 @@ class GameAPITestCase(APITestCase):
             is_staff=True,
             is_active=True,
         )
+
+        # Create test platforms and vendors
+        self.platform1 = Platform.objects.create(name="PC")
+        self.platform2 = Platform.objects.create(name="PlayStation 5")
+        self.vendor1 = Vendor.objects.create(name="Steam")
+        self.vendor2 = Vendor.objects.create(name="Epic Games Store")
 
         # Create test games
         self.game1 = Game.objects.create(
@@ -44,33 +53,28 @@ class GameAPITestCase(APITestCase):
         )
 
     def _get_auth_headers(self):
-        """Helper to get authentication headers"""
         return {"HTTP_AUTHORIZATION": f"Bearer {settings.API_TOKEN}"}
 
     def test_game_list_without_auth_fails(self):
-        """Test that list endpoint requires authentication"""
-        url = reverse("game-list-api")
+        url = reverse("game-list-create-api")
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_game_detail_without_auth_fails(self):
-        """Test that detail endpoint requires authentication"""
         url = reverse("game-detail-api", kwargs={"id": self.game1.id})
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
 
-class GameListAPIViewTestCase(GameAPITestCase):
+class GameListCreateAPIViewTestCase(GameAPITestCase):
     def test_game_list_with_auth_succeeds(self):
-        """Test that authenticated requests to list endpoint work"""
-        url = reverse("game-list-api")
+        url = reverse("game-list-create-api")
         response = self.client.get(url, **self._get_auth_headers())
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 3)
 
     def test_game_list_search_by_title(self):
-        """Test searching games by title"""
-        url = reverse("game-list-api")
+        url = reverse("game-list-create-api")
         response = self.client.get(
             url, {"search": "witcher"}, **self._get_auth_headers()
         )
@@ -79,8 +83,7 @@ class GameListAPIViewTestCase(GameAPITestCase):
         self.assertEqual(response.data[0]["title"], "The Witcher 3")
 
     def test_game_list_search_case_insensitive(self):
-        """Test that search is case insensitive"""
-        url = reverse("game-list-api")
+        url = reverse("game-list-create-api")
         response = self.client.get(
             url, {"search": "PORTAL"}, **self._get_auth_headers()
         )
@@ -89,21 +92,78 @@ class GameListAPIViewTestCase(GameAPITestCase):
         self.assertEqual(response.data[0]["title"], "Portal 2")
 
     def test_game_list_search_partial_match(self):
-        """Test that search works with partial matches"""
-        url = reverse("game-list-api")
+        url = reverse("game-list-create-api")
         response = self.client.get(url, {"search": "cyber"}, **self._get_auth_headers())
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 1)
         self.assertEqual(response.data[0]["title"], "Cyberpunk 2077")
 
     def test_game_list_search_no_results(self):
-        """Test search with no matching results"""
-        url = reverse("game-list-api")
+        url = reverse("game-list-create-api")
         response = self.client.get(
             url, {"search": "nonexistent"}, **self._get_auth_headers()
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 0)
+
+    def test_create_game_with_all_required_fields(self):
+        url = reverse("game-list-create-api")
+        data = {
+            "title": "New Game",
+            "platform_id": self.platform1.id,
+            "vendor_id": self.vendor1.id,
+            "price": "29.99",
+            "added": "2023-01-01"
+        }
+        response = self.client.post(url, data, **self._get_auth_headers())
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data["title"], "New Game")
+
+    def test_create_game_without_date_uses_current_date(self):
+        url = reverse("game-list-create-api")
+        data = {
+            "title": "Another Game",
+            "platform_id": self.platform1.id,
+            "vendor_id": self.vendor1.id,
+            "price": "39.99"
+        }
+        response = self.client.post(url, data, **self._get_auth_headers())
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        game_on_platform = GameOnPlatform.objects.get(game__title="Another Game")
+        self.assertEqual(game_on_platform.added, timezone.now().date())
+
+    def test_create_game_with_invalid_platform_fails(self):
+        url = reverse("game-list-create-api")
+        data = {
+            "title": "Invalid Game",
+            "platform_id": 999,
+            "vendor_id": self.vendor1.id,
+            "price": "29.99"
+        }
+        response = self.client.post(url, data, **self._get_auth_headers())
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("platform_id", response.data)
+
+    def test_create_game_with_invalid_vendor_fails(self):
+        url = reverse("game-list-create-api")
+        data = {
+            "title": "Invalid Game",
+            "platform_id": self.platform1.id,
+            "vendor_id": 999,
+            "price": "29.99"
+        }
+        response = self.client.post(url, data, **self._get_auth_headers())
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("vendor_id", response.data)
+
+    def test_create_game_without_required_fields_fails(self):
+        url = reverse("game-list-create-api")
+        data = {"title": "Incomplete Game"}
+        response = self.client.post(url, data, **self._get_auth_headers())
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("platform_id", response.data)
+        self.assertIn("vendor_id", response.data)
+        self.assertIn("price", response.data)
 
 
 class GameDetailAPIViewTestCase(GameAPITestCase):
