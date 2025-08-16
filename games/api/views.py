@@ -12,12 +12,12 @@ class GameListAPIView(generics.ListAPIView):
     authentication_classes = [APITokenAuthentication]
     permission_classes = [IsAuthenticated]
     filter_backends = [SearchFilter]
-    search_fields = ['title']
+    search_fields = ["title"]
 
 
 class GameDetailAPIView(generics.RetrieveAPIView):
     queryset = Game.objects.all()
     serializer_class = GameSerializer
-    lookup_field = 'id'
+    lookup_field = "id"
     authentication_classes = [APITokenAuthentication]
     permission_classes = [IsAuthenticated]
