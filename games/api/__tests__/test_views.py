@@ -1,14 +1,14 @@
-from django.conf import settings
-from django.contrib.auth.models import User
-from django.urls import reverse
-from django.utils import timezone
-from rest_framework import status
-from rest_framework.test import APITestCase
-from decimal import Decimal
 from uuid import uuid4
 
-from ...models import Game, Platform, Vendor, GameOnPlatform
-from .factories import UserFactory, GameFactory, PlatformFactory, VendorFactory
+from django.conf import settings
+from django.urls import reverse
+from django.utils import timezone
+
+from rest_framework import status
+from rest_framework.test import APITestCase
+
+from ...models import GameOnPlatform, Platform, Vendor
+from .factories import GameFactory, PlatformFactory, UserFactory, VendorFactory
 
 
 class GameAPITestCase(APITestCase):
@@ -173,7 +173,7 @@ class GameListCreateAPIViewTestCase(GameAPITestCase):
         }
         response = self.client.post(url, data, **self._get_auth_headers())
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        
+
         # Verify platform and vendor were created
         self.assertTrue(Platform.objects.filter(name=new_platform.name).exists())
         self.assertTrue(Vendor.objects.filter(name=new_vendor.name).exists())
@@ -190,7 +190,7 @@ class GameListCreateAPIViewTestCase(GameAPITestCase):
         }
         response = self.client.post(url, data, **self._get_auth_headers())
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        
+
         # Verify trimmed names were used
         self.assertTrue(Platform.objects.filter(name=platform_name).exists())
         self.assertTrue(Vendor.objects.filter(name=vendor_name).exists())
@@ -199,11 +199,11 @@ class GameListCreateAPIViewTestCase(GameAPITestCase):
 
     def test_create_game_reuses_existing_platform_and_vendor(self):
         url = reverse("game-list-create-api")
-        
+
         # Use unique names from factories
         platform_name = PlatformFactory.build().name
         vendor_name = VendorFactory.build().name
-        
+
         # Create first game with new platform/vendor
         data1 = {
             "title": "First Game",
@@ -213,10 +213,10 @@ class GameListCreateAPIViewTestCase(GameAPITestCase):
         }
         response1 = self.client.post(url, data1, **self._get_auth_headers())
         self.assertEqual(response1.status_code, status.HTTP_201_CREATED)
-        
+
         platform_count = Platform.objects.filter(name=platform_name).count()
         vendor_count = Vendor.objects.filter(name=vendor_name).count()
-        
+
         # Create second game with same platform/vendor
         data2 = {
             "title": "Second Game",
@@ -226,16 +226,18 @@ class GameListCreateAPIViewTestCase(GameAPITestCase):
         }
         response2 = self.client.post(url, data2, **self._get_auth_headers())
         self.assertEqual(response2.status_code, status.HTTP_201_CREATED)
-        
+
         # Verify no duplicates were created
-        self.assertEqual(Platform.objects.filter(name=platform_name).count(), platform_count)
+        self.assertEqual(
+            Platform.objects.filter(name=platform_name).count(), platform_count
+        )
         self.assertEqual(Vendor.objects.filter(name=vendor_name).count(), vendor_count)
 
     def test_create_game_case_insensitive_platform_matching(self):
         # Create a platform with specific casing
         platform = PlatformFactory(name="Nintendo Switch")
         vendor_name = VendorFactory.build().name
-        
+
         url = reverse("game-list-create-api")
         data = {
             "title": "Case Test Game",
@@ -245,17 +247,19 @@ class GameListCreateAPIViewTestCase(GameAPITestCase):
         }
         response = self.client.post(url, data, **self._get_auth_headers())
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        
+
         # Should only have one Nintendo Switch platform (the original casing)
         platforms = Platform.objects.filter(name__iexact="nintendo switch")
         self.assertEqual(platforms.count(), 1)
-        self.assertEqual(platforms.first().name, "Nintendo Switch")  # Original casing preserved
+        self.assertEqual(
+            platforms.first().name, platform.name
+        )  # Original casing preserved
 
     def test_create_game_case_insensitive_vendor_matching(self):
         # Create a vendor with specific casing
         vendor = VendorFactory(name="GOG Galaxy")
         platform_name = PlatformFactory.build().name
-        
+
         url = reverse("game-list-create-api")
         data = {
             "title": "Vendor Case Test",
@@ -265,11 +269,11 @@ class GameListCreateAPIViewTestCase(GameAPITestCase):
         }
         response = self.client.post(url, data, **self._get_auth_headers())
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        
+
         # Should only have one GOG Galaxy vendor (the original casing)
         vendors = Vendor.objects.filter(name__iexact="gog galaxy")
         self.assertEqual(vendors.count(), 1)
-        self.assertEqual(vendors.first().name, "GOG Galaxy")  # Original casing preserved
+        self.assertEqual(vendors.first().name, vendor.name)  # Original casing preserved
 
     def test_create_game_preserves_new_platform_casing(self):
         url = reverse("game-list-create-api")
@@ -282,7 +286,7 @@ class GameListCreateAPIViewTestCase(GameAPITestCase):
         }
         response = self.client.post(url, data, **self._get_auth_headers())
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        
+
         # Should preserve the exact casing provided
         platform = Platform.objects.get(name__iexact="nintendo switch oled")
         self.assertEqual(platform.name, "Nintendo Switch OLED")
@@ -298,7 +302,7 @@ class GameListCreateAPIViewTestCase(GameAPITestCase):
         }
         response = self.client.post(url, data, **self._get_auth_headers())
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        
+
         # Should preserve the exact casing provided
         vendor = Vendor.objects.get(name__iexact="gog.com")
         self.assertEqual(vendor.name, "GOG.com")
@@ -307,16 +311,16 @@ class GameListCreateAPIViewTestCase(GameAPITestCase):
         # Pre-create some entries with specific casing
         platform = PlatformFactory(name="Xbox Series X")
         vendor = VendorFactory(name="Microsoft Store")
-        
+
         url = reverse("game-list-create-api")
-        
+
         # Test various case combinations
         test_cases = [
             ("xbox series x", "microsoft store"),
-            ("XBOX SERIES X", "MICROSOFT STORE"), 
+            ("XBOX SERIES X", "MICROSOFT STORE"),
             ("Xbox SERIES x", "Microsoft STORE"),
         ]
-        
+
         for i, (platform_name, vendor_name) in enumerate(test_cases):
             with self.subTest(case=i):
                 data = {
@@ -327,11 +331,15 @@ class GameListCreateAPIViewTestCase(GameAPITestCase):
                 }
                 response = self.client.post(url, data, **self._get_auth_headers())
                 self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        
+
         # Should still only have one of each with original casing
-        self.assertEqual(Platform.objects.filter(name__iexact="xbox series x").count(), 1)
-        self.assertEqual(Vendor.objects.filter(name__iexact="microsoft store").count(), 1)
-        
+        self.assertEqual(
+            Platform.objects.filter(name__iexact="xbox series x").count(), 1
+        )
+        self.assertEqual(
+            Vendor.objects.filter(name__iexact="microsoft store").count(), 1
+        )
+
         platform = Platform.objects.get(name__iexact="xbox series x")
         vendor = Vendor.objects.get(name__iexact="microsoft store")
         self.assertEqual(platform.name, "Xbox Series X")
@@ -371,7 +379,6 @@ class GameDetailAPIViewTestCase(GameAPITestCase):
 
     def test_game_detail_nonexistent_returns_404(self):
         """Test that requesting nonexistent game returns 404"""
-        from uuid import uuid4
 
         nonexistent_id = uuid4()
         url = reverse("game-detail-api", kwargs={"id": nonexistent_id})

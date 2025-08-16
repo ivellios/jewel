@@ -43,7 +43,7 @@ class GameInterface(abc.ABC):
             "title": self.title,
             "platforms": [platform.to_dict() for platform in self.platforms]
             if self.platforms
-            else list(),
+            else [],
             "play_priority": self.play_priority,
             "played": self.played,
             "controller_support": self.controller_support,
@@ -51,7 +51,7 @@ class GameInterface(abc.ABC):
             "party_fit": self.party_fit,
             "review": self.review,
             "notes": self.notes,
-            "genres": self.genres if self.genres else list(),
+            "genres": self.genres if self.genres else [],
         }
 
 

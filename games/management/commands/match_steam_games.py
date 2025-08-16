@@ -1,10 +1,11 @@
+from collections.abc import Iterable
 from pprint import pprint
-from typing import Iterable
 
 from django.core.management import BaseCommand
+
 from tqdm import tqdm
 
-from games.models import Platform, GameOnPlatform
+from games.models import GameOnPlatform, Platform
 from steam.repositories import SteamGamesRepository
 
 

@@ -1,14 +1,15 @@
 from rest_framework import generics
-from rest_framework.permissions import IsAuthenticated
 from rest_framework.filters import SearchFilter
+from rest_framework.permissions import IsAuthenticated
+
 from ..models import Game, Platform, Vendor
+from .authentication import APITokenAuthentication
 from .serializers import (
+    GameCreateSerializer,
     GameSerializer,
     PlatformSerializer,
     VendorSerializer,
-    GameCreateSerializer,
 )
-from .authentication import APITokenAuthentication
 
 
 class PlatformListAPIView(generics.ListAPIView):

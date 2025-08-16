@@ -1,6 +1,8 @@
-import factory
 from django.contrib.auth.models import User
-from ...models import Game, Platform, Vendor, GameOnPlatform
+
+import factory
+
+from ...models import Game, GameOnPlatform, Platform, Vendor
 
 
 class UserFactory(factory.django.DjangoModelFactory):

@@ -3,7 +3,7 @@ from decimal import Decimal
 
 import pytest
 
-from abstract.games import GameInterface, PlatformInterface, GameOnPlatformInterface
+from abstract.games import GameInterface, GameOnPlatformInterface, PlatformInterface
 from games.models import Game
 from games.repositories import DjangoGameRepository
 
@@ -13,7 +13,7 @@ def empty_game():
     class SimpleGame(GameInterface):
         id = None
         title = "Some game"
-        platforms = list()
+        platforms = []
         play_priority = None
         played = False
         controller_support = None
@@ -21,7 +21,7 @@ def empty_game():
         party_fit = None
         review = None
         notes = None
-        genres = list()
+        genres = []
         price = None
         added = None
         source = None
@@ -34,7 +34,7 @@ def simple_game():
     class SimpleGame(GameInterface):
         id = None
         title = "Some game"
-        platforms = list()
+        platforms = []
         play_priority = 5
         played = True
         controller_support = True
@@ -42,7 +42,7 @@ def simple_game():
         party_fit = True
         review = 10
         notes = "Some notes"
-        genres = list()
+        genres = []
 
     return SimpleGame()
 

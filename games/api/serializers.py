@@ -1,6 +1,8 @@
-from rest_framework import serializers
 from django.utils import timezone
-from ..models import Game, Platform, Genre, GameOnPlatform, Vendor
+
+from rest_framework import serializers
+
+from ..models import Game, GameOnPlatform, Genre, Platform, Vendor
 
 
 class PlatformSerializer(serializers.ModelSerializer):

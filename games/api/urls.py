@@ -1,7 +1,8 @@
 from django.urls import path
+
 from .views import (
-    GameListCreateAPIView,
     GameDetailAPIView,
+    GameListCreateAPIView,
     PlatformListAPIView,
     VendorListAPIView,
 )
