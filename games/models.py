@@ -36,7 +36,7 @@ class GameManager(models.Manager):
 
 class Game(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    title = models.CharField(max_length=255, verbose_name="Title")
+    name = models.CharField(max_length=255, verbose_name="Game title")
     platforms = models.ManyToManyField(
         Platform,
         verbose_name="Platform",
@@ -76,7 +76,7 @@ class Game(models.Model):
     objects = GameManager.from_queryset(GameQuerySet)()
 
     def __str__(self):
-        return self.title
+        return self.name
 
     def save(self, *args, **kwargs):
         creating = not self.pk
@@ -110,4 +110,4 @@ class GameOnPlatform(models.Model):
     source = models.ForeignKey(Vendor, on_delete=models.SET_NULL, null=True, blank=True)
 
     def __str__(self):
-        return f"{self.game.title} on {self.platform.name}"
+        return f"{self.game.name} on {self.platform.name}"

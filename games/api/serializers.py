@@ -49,7 +49,7 @@ class GameSerializer(serializers.ModelSerializer):
         model = Game
         fields = [
             "id",
-            "title",
+            "name",
             "play_priority",
             "played",
             "controller_support",
@@ -71,7 +71,7 @@ class GameCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Game
         fields = [
-            "title",
+            "name",
             "platform_name",
             "vendor_name",
             "added",
@@ -85,7 +85,7 @@ class GameCreateSerializer(serializers.ModelSerializer):
             "notes",
         ]
 
-    def validate_title(self, value):
+    def validate_name(self, value):
         return value.strip() if value else value
 
     def validate_notes(self, value):

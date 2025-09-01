@@ -44,13 +44,13 @@ class DjangoGameRepository(GameRepository):
             game_on_platform_model.save(update_fields=["source"])
 
     @staticmethod
-    def create_game_model(game: GameInterface, data: dict) -> Game:
+    def create_game_model(game: GameInterface, data: dict) -> tuple[Game, bool]:
         if game.id:
             game_model = Game.objects.get(pk=game.id)
             created = False
         else:
             data.pop("id")
-            game_model, created = Game.objects.get_or_create(title=game.title)
+            game_model, created = Game.objects.get_or_create(name=game.name)
 
         for field in data:
             if hasattr(game_model, field):

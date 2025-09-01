@@ -23,10 +23,10 @@ class Command(BaseCommand):
         multiple_matches = []
         for game_copy in tqdm(game_copies):
             game = game_copy.game
-            steam_game, score = steam_repository.find_by_name(game.title)
+            steam_game, score = steam_repository.find_by_name(game.name)
             if steam_game is None:
-                multiple_matches.append((game.title, game.id))
-                tqdm.write(f'Multiple exact matches found for "{game.title}"')
+                multiple_matches.append((game.name, game.id))
+                tqdm.write(f'Multiple exact matches found for "{game.name}"')
                 continue
 
             if score == 100:
@@ -34,9 +34,9 @@ class Command(BaseCommand):
                 game_copy.save()
             if score < 100:
                 matches.append(
-                    (game.title, game.id, steam_game.name, steam_game.appid, score)
+                    (game.name, game.id, steam_game.name, steam_game.appid, score)
                 )
-                tqdm.write(f"{steam_game}, {game.title}, {score}")
+                tqdm.write(f"{steam_game}, {game.name}, {score}")
             # details = steam_repository.pull_game(steam_game)
 
         print(f"Found {len(matches)} matches that need manual review")

@@ -31,7 +31,7 @@ class GameListCreateAPIView(generics.ListCreateAPIView):
     authentication_classes = [APITokenAuthentication]
     permission_classes = [IsAuthenticated]
     filter_backends = [SearchFilter]
-    search_fields = ["title"]
+    search_fields = ["name"]
 
     def get_serializer_class(self):
         if self.request.method == "POST":
