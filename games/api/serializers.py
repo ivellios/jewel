@@ -128,6 +128,27 @@ class GameCreateSerializer(serializers.ModelSerializer):
         return game
 
 
+class GameUpdateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Game
+        fields = [
+            "name",
+            "play_priority",
+            "played",
+            "controller_support",
+            "max_players",
+            "party_fit",
+            "review",
+            "notes",
+        ]
+
+    def validate_name(self, value):
+        return value.strip() if value else value
+
+    def validate_notes(self, value):
+        return value.strip() if value else value
+
+
 class GamePlatformUpdateSerializer(serializers.ModelSerializer):
     vendor_name = serializers.CharField(max_length=100, write_only=True, required=False)
 

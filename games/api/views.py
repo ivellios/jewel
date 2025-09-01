@@ -9,6 +9,7 @@ from .serializers import (
     GamePlatformCreateSerializer,
     GamePlatformUpdateSerializer,
     GameSerializer,
+    GameUpdateSerializer,
     PlatformSerializer,
     VendorSerializer,
 )
@@ -38,11 +39,15 @@ class GameListCreateAPIView(generics.ListCreateAPIView):
         return GameSerializer
 
 
-class GameDetailAPIView(generics.RetrieveAPIView):
+class GameDetailAPIView(generics.RetrieveUpdateAPIView):
     queryset = Game.objects.all()
-    serializer_class = GameSerializer
     lookup_field = "id"
     permission_classes = [IsAuthenticated]
+
+    def get_serializer_class(self):
+        if self.request.method in ["PUT", "PATCH"]:
+            return GameUpdateSerializer
+        return GameSerializer
 
 
 class GamePlatformCreateAPIView(generics.CreateAPIView):
