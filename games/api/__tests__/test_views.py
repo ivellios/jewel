@@ -408,3 +408,190 @@ class APITokenAuthenticationTestCase(GameAPITestCase):
             url, HTTP_AUTHORIZATION=f"Token {settings.API_TOKEN}"
         )
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+
+class PlatformListCreateAPIViewTestCase(GameAPITestCase):
+    def test_create_platform_success(self):
+        url = reverse("platform-list-create-api")
+        data = {"name": "New Platform"}
+        response = self.client.post(url, data, **self._get_auth_headers())
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data["name"], "New Platform")
+        self.assertTrue(Platform.objects.filter(name="New Platform").exists())
+
+    def test_create_platform_trims_whitespace(self):
+        url = reverse("platform-list-create-api")
+        data = {"name": "  Trimmed Platform  "}
+        response = self.client.post(url, data, **self._get_auth_headers())
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data["name"], "Trimmed Platform")
+
+    def test_create_platform_without_name_fails(self):
+        url = reverse("platform-list-create-api")
+        data = {}
+        response = self.client.post(url, data, **self._get_auth_headers())
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("name", response.data)
+
+
+class GamePlatformCreateAPIViewTestCase(GameAPITestCase):
+    def setUp(self):
+        super().setUp()
+        # Add a platform to game1 for testing
+        GameOnPlatform.objects.create(
+            game=self.game1, platform=self.platform1, source=self.vendor1, price=29.99
+        )
+
+    def test_add_platform_to_game_success(self):
+        url = reverse("game-platform-create-api", kwargs={"game_id": self.game1.id})
+        data = {
+            "platform_name": "PlayStation 5",
+            "vendor_name": "PlayStation Store",
+            "price": "59.99",
+            "identifier": "PS5-123",
+        }
+        response = self.client.post(url, data, **self._get_auth_headers())
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        # Verify GameOnPlatform was created
+        game_platform = GameOnPlatform.objects.get(
+            game=self.game1, platform__name="PlayStation 5"
+        )
+        self.assertEqual(str(game_platform.price), "59.99")
+        self.assertEqual(game_platform.identifier, "PS5-123")
+
+    def test_add_platform_minimal_data(self):
+        url = reverse("game-platform-create-api", kwargs={"game_id": self.game1.id})
+        data = {"platform_name": "Nintendo Switch"}
+        response = self.client.post(url, data, **self._get_auth_headers())
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_add_duplicate_platform_fails(self):
+        url = reverse("game-platform-create-api", kwargs={"game_id": self.game1.id})
+        data = {"platform_name": "PC"}  # Already exists for game1
+        response = self.client.post(url, data, **self._get_auth_headers())
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("This game already exists on this platform", str(response.data))
+
+    def test_add_platform_nonexistent_game_fails(self):
+        nonexistent_id = uuid4()
+        url = reverse("game-platform-create-api", kwargs={"game_id": nonexistent_id})
+        data = {"platform_name": "PC"}
+        response = self.client.post(url, data, **self._get_auth_headers())
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+
+class GamePlatformDetailAPIViewTestCase(GameAPITestCase):
+    def setUp(self):
+        super().setUp()
+        # Create GameOnPlatform relationship for testing
+        self.game_platform = GameOnPlatform.objects.create(
+            game=self.game1,
+            platform=self.platform1,
+            source=self.vendor1,
+            price=29.99,
+            identifier="PC-123",
+        )
+
+    def test_update_game_platform_patch(self):
+        url = reverse(
+            "game-platform-detail-api",
+            kwargs={"game_id": self.game1.id, "platform_id": self.platform1.id},
+        )
+        data = {"price": "39.99", "vendor_name": "Epic Games Store"}
+        response = self.client.patch(url, data, **self._get_auth_headers())
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        self.game_platform.refresh_from_db()
+        self.assertEqual(str(self.game_platform.price), "39.99")
+        self.assertEqual(self.game_platform.source.name, "Epic Games Store")
+
+    def test_update_game_platform_put(self):
+        url = reverse(
+            "game-platform-detail-api",
+            kwargs={"game_id": self.game1.id, "platform_id": self.platform1.id},
+        )
+        data = {"price": "49.99", "identifier": "PC-456", "vendor_name": "GOG"}
+        response = self.client.put(url, data, **self._get_auth_headers())
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        self.game_platform.refresh_from_db()
+        self.assertEqual(str(self.game_platform.price), "49.99")
+        self.assertEqual(self.game_platform.identifier, "PC-456")
+
+    def test_delete_game_platform(self):
+        url = reverse(
+            "game-platform-detail-api",
+            kwargs={"game_id": self.game1.id, "platform_id": self.platform1.id},
+        )
+        response = self.client.delete(url, **self._get_auth_headers())
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Verify relationship was deleted
+        self.assertFalse(
+            GameOnPlatform.objects.filter(
+                game=self.game1, platform=self.platform1
+            ).exists()
+        )
+
+    def test_update_nonexistent_relationship_fails(self):
+        url = reverse(
+            "game-platform-detail-api",
+            kwargs={
+                "game_id": self.game1.id,
+                "platform_id": self.platform2.id,  # Not associated with game1
+            },
+        )
+        data = {"price": "19.99"}
+        response = self.client.patch(url, data, **self._get_auth_headers())
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+
+class GameUpdateAPIViewTestCase(GameAPITestCase):
+    def test_update_game_patch(self):
+        url = reverse("game-detail-api", kwargs={"id": self.game1.id})
+        data = {"name": "The Witcher 3: Wild Hunt", "play_priority": 10, "played": True}
+        response = self.client.patch(url, data, **self._get_auth_headers())
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        self.game1.refresh_from_db()
+        self.assertEqual(self.game1.name, "The Witcher 3: Wild Hunt")
+        self.assertEqual(self.game1.play_priority, 10)
+        self.assertTrue(self.game1.played)
+
+    def test_update_game_put(self):
+        url = reverse("game-detail-api", kwargs={"id": self.game1.id})
+        data = {
+            "name": "Updated Game Name",
+            "play_priority": 5,
+            "played": False,
+            "controller_support": False,
+            "max_players": 4,
+            "party_fit": True,
+            "review": 8,
+            "notes": "Updated notes",
+        }
+        response = self.client.put(url, data, **self._get_auth_headers())
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        self.game1.refresh_from_db()
+        self.assertEqual(self.game1.name, "Updated Game Name")
+        self.assertEqual(self.game1.play_priority, 5)
+        self.assertFalse(self.game1.played)
+
+    def test_update_game_trims_whitespace(self):
+        url = reverse("game-detail-api", kwargs={"id": self.game1.id})
+        data = {"name": "  Trimmed Name  ", "notes": "  Trimmed Notes  "}
+        response = self.client.patch(url, data, **self._get_auth_headers())
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        self.game1.refresh_from_db()
+        self.assertEqual(self.game1.name, "Trimmed Name")
+        self.assertEqual(self.game1.notes, "Trimmed Notes")
+
+    def test_update_nonexistent_game_fails(self):
+        nonexistent_id = uuid4()
+        url = reverse("game-detail-api", kwargs={"id": nonexistent_id})
+        data = {"name": "Should Fail"}
+        response = self.client.patch(url, data, **self._get_auth_headers())
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)

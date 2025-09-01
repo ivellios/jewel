@@ -60,7 +60,7 @@ class GamePlatformCreateAPIView(generics.CreateAPIView):
             game = Game.objects.get(id=self.kwargs["game_id"])
             context["game"] = game
         except Game.DoesNotExist:
-            pass
+            context["game"] = None
         return context
 
 

@@ -190,6 +190,9 @@ class GamePlatformCreateSerializer(serializers.ModelSerializer):
         vendor_name = validated_data.pop("vendor_name", None)
         game = self.context["game"]
 
+        if not game:
+            raise serializers.ValidationError("Game not found")
+
         platform, created = Platform.objects.get_or_create(
             name__iexact=platform_name, defaults={"name": platform_name}
         )
