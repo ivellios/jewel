@@ -1,34 +1,33 @@
-from rest_framework import generics
+from rest_framework import generics, status
 from rest_framework.filters import SearchFilter
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
 
-from ..models import Game, Platform, Vendor
-from .authentication import APITokenAuthentication
+from ..models import Game, GameOnPlatform, Platform, Vendor
 from .serializers import (
     GameCreateSerializer,
+    GamePlatformCreateSerializer,
+    GamePlatformUpdateSerializer,
     GameSerializer,
     PlatformSerializer,
     VendorSerializer,
 )
 
 
-class PlatformListAPIView(generics.ListAPIView):
+class PlatformListCreateAPIView(generics.ListCreateAPIView):
     queryset = Platform.objects.all()
     serializer_class = PlatformSerializer
-    authentication_classes = [APITokenAuthentication]
     permission_classes = [IsAuthenticated]
 
 
 class VendorListAPIView(generics.ListAPIView):
     queryset = Vendor.objects.all()
     serializer_class = VendorSerializer
-    authentication_classes = [APITokenAuthentication]
     permission_classes = [IsAuthenticated]
 
 
 class GameListCreateAPIView(generics.ListCreateAPIView):
     queryset = Game.objects.all()
-    authentication_classes = [APITokenAuthentication]
     permission_classes = [IsAuthenticated]
     filter_backends = [SearchFilter]
     search_fields = ["name"]
@@ -43,5 +42,85 @@ class GameDetailAPIView(generics.RetrieveAPIView):
     queryset = Game.objects.all()
     serializer_class = GameSerializer
     lookup_field = "id"
-    authentication_classes = [APITokenAuthentication]
     permission_classes = [IsAuthenticated]
+
+
+class GamePlatformCreateAPIView(generics.CreateAPIView):
+    serializer_class = GamePlatformCreateSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        try:
+            game = Game.objects.get(id=self.kwargs["game_id"])
+            context["game"] = game
+        except Game.DoesNotExist:
+            pass
+        return context
+
+
+class GamePlatformDetailAPIView(generics.RetrieveUpdateDestroyAPIView):
+    serializer_class = GamePlatformUpdateSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_object(self):
+        try:
+            game = Game.objects.get(id=self.kwargs["game_id"])
+            platform = Platform.objects.get(id=self.kwargs["platform_id"])
+            return GameOnPlatform.objects.get(game=game, platform=platform)
+        except (Game.DoesNotExist, Platform.DoesNotExist, GameOnPlatform.DoesNotExist):
+            return None
+
+    def put(self, request, game_id, platform_id):
+        game_platform = self.get_object()
+        if not game_platform:
+            return Response(
+                {"error": "Game-platform relationship not found"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        serializer = GamePlatformUpdateSerializer(game_platform, data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(
+            {
+                "message": "Game-platform relationship updated successfully",
+                "platform_name": game_platform.platform.name,
+            }
+        )
+
+    def patch(self, request, game_id, platform_id):
+        game_platform = self.get_object()
+        if not game_platform:
+            return Response(
+                {"error": "Game-platform relationship not found"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        serializer = GamePlatformUpdateSerializer(
+            game_platform, data=request.data, partial=True
+        )
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(
+            {
+                "message": "Game-platform relationship updated successfully",
+                "platform_name": game_platform.platform.name,
+            }
+        )
+
+    def delete(self, request, game_id, platform_id):
+        game_platform = self.get_object()
+        if not game_platform:
+            return Response(
+                {"error": "Game-platform relationship not found"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        platform_name = game_platform.platform.name
+        game_platform.delete()
+
+        return Response(
+            {"message": f"Platform '{platform_name}' removed from game successfully"},
+            status=status.HTTP_200_OK,
+        )

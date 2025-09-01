@@ -136,3 +136,14 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # API Configuration
 API_TOKEN = os.environ.get("API_TOKEN")
+
+# Django REST Framework
+REST_FRAMEWORK = {
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "rest_framework.authentication.SessionAuthentication",
+        "games.api.authentication.APITokenAuthentication",
+    ],
+    "DEFAULT_PERMISSION_CLASSES": [
+        "rest_framework.permissions.IsAuthenticated",
+    ],
+}

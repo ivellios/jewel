@@ -126,3 +126,67 @@ class GameCreateSerializer(serializers.ModelSerializer):
         )
 
         return game
+
+
+class GamePlatformUpdateSerializer(serializers.ModelSerializer):
+    vendor_name = serializers.CharField(max_length=100, write_only=True, required=False)
+
+    class Meta:
+        model = GameOnPlatform
+        fields = ["added", "identifier", "price", "vendor_name"]
+
+    def validate_vendor_name(self, value):
+        return value.strip() if value else value
+
+    def update(self, instance, validated_data):
+        vendor_name = validated_data.pop("vendor_name", None)
+
+        if vendor_name:
+            vendor, created = Vendor.objects.get_or_create(
+                name__iexact=vendor_name, defaults={"name": vendor_name}
+            )
+            instance.source = vendor
+
+        return super().update(instance, validated_data)
+
+
+class GamePlatformCreateSerializer(serializers.ModelSerializer):
+    platform_name = serializers.CharField(max_length=100, write_only=True)
+    vendor_name = serializers.CharField(max_length=100, write_only=True, required=False)
+
+    class Meta:
+        model = GameOnPlatform
+        fields = ["platform_name", "vendor_name", "added", "identifier", "price"]
+
+    def validate_platform_name(self, value):
+        return value.strip() if value else value
+
+    def validate_vendor_name(self, value):
+        return value.strip() if value else value
+
+    def create(self, validated_data):
+        platform_name = validated_data.pop("platform_name")
+        vendor_name = validated_data.pop("vendor_name", None)
+        game = self.context["game"]
+
+        platform, created = Platform.objects.get_or_create(
+            name__iexact=platform_name, defaults={"name": platform_name}
+        )
+
+        if GameOnPlatform.objects.filter(game=game, platform=platform).exists():
+            raise serializers.ValidationError(
+                "This game already exists on this platform"
+            )
+
+        vendor = None
+        if vendor_name:
+            vendor, created = Vendor.objects.get_or_create(
+                name__iexact=vendor_name, defaults={"name": vendor_name}
+            )
+
+        return GameOnPlatform.objects.create(
+            game=game,
+            platform=platform,
+            source=vendor,
+            **validated_data,
+        )
