@@ -16,7 +16,9 @@ services:
       retries: 5
 
   web:
-    build: .
+    build:
+      dockerfile: ./docker/dev.Dockerfile
+      context: .
     ports:
       - "8000:8000"
     environment:
@@ -28,10 +30,11 @@ services:
         condition: service_healthy
     volumes:
       - .:/app
-      - /app/.venv
+      - venv:/app/.venv
     command: >
       sh -c "uv run manage.py migrate &&
              uv run manage.py runserver 0.0.0.0:8000"
 
 volumes:
   postgres_data:
+  venv:

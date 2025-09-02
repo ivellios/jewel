@@ -343,6 +343,7 @@ dependencies = [
     { name = "requests" },
     { name = "ruff" },
     { name = "tqdm" },
+    { name = "uwsgi" },
 ]
 
 [package.metadata]
@@ -367,6 +368,7 @@ requires-dist = [
     { name = "requests", specifier = ">=2.32.4" },
     { name = "ruff", specifier = ">=0.8.0" },
     { name = "tqdm", specifier = "==4.64.1" },
+    { name = "uwsgi", specifier = ">=2.0.30" },
 ]
 
 [[package]]
@@ -868,6 +870,12 @@ sdist = { url = "https://files.pythonhosted.org/packages/15/22/9ee70a2574a4f4599
 wheels = [
     { url = "https://files.pythonhosted.org/packages/a7/c2/fe1e52489ae3122415c51f387e221dd0773709bad6c6cdaa599e8a2c5185/urllib3-2.5.0-py3-none-any.whl", hash = "sha256:e6b01673c0fa6a13e374b50871808eb3bf7046c4b125b216f6bf1cc604cff0dc", size = 129795 },
 ]
+
+[[package]]
+name = "uwsgi"
+version = "2.0.30"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/6f/f0/d794e9c7359f488b158e88c9e718c5600efdb74a0daf77331e5ffb6c87c4/uwsgi-2.0.30.tar.gz", hash = "sha256:c12aa652124f062ac216077da59f6d247bd7ef938234445881552e58afb1eb5f", size = 822560 }
 
 [[package]]
 name = "virtualenv"
