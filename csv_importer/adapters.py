@@ -32,7 +32,7 @@ class CSVGameOnPlatformAdapter(GameOnPlatformInterface):
             return None
 
     @property
-    def source(self):
+    def vendor(self):
         return self.data.get("source")
 
     @property
@@ -73,7 +73,7 @@ class CSVGameAdapter(GameInterface):
             self.data.get("platform_3"),
         )
 
-        # almost always added, price and source come for the first added platform
+        # almost always added, price and vendor come for the first added platform
         data_p1 = {
             "name": p1,
             "price": self.data.get("price"),

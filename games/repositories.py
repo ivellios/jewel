@@ -21,8 +21,8 @@ class DjangoGameRepository(GameRepository):
                 price=platform_game.price,
                 identifier=platform_game.identifier,
             )
-            if platform_game.source:
-                DjangoGameRepository.create_source(gop, platform_game.source)
+            if platform_game.vendor:
+                DjangoGameRepository.create_vendor(gop, platform_game.vendor)
 
     @staticmethod
     def create_genres(game_model: Game, genres: list[str]):
@@ -33,24 +33,26 @@ class DjangoGameRepository(GameRepository):
                     game_model.genres.add(genre_model)
 
     @staticmethod
-    def create_source(game_on_platform_model: GameOnPlatform, source: str):
-        vendor, created = Vendor.objects.get_or_create(name=source)
+    def create_vendor(game_on_platform_model: GameOnPlatform, vendor: str):
+        vendor_obj, created = Vendor.objects.get_or_create(name=vendor)
         if (
-            not game_on_platform_model.source
-            or game_on_platform_model.source.pk != vendor.pk
+            not game_on_platform_model.vendor
+            or game_on_platform_model.vendor.pk != vendor_obj.pk
             or created
         ):
-            game_on_platform_model.source = vendor
-            game_on_platform_model.save(update_fields=["source"])
+            game_on_platform_model.vendor = vendor_obj
+            game_on_platform_model.save(update_fields=["vendor"])
 
     @staticmethod
     def create_game_model(game: GameInterface, data: dict) -> tuple[Game, bool]:
         if game.id:
-            game_model = Game.objects.get(pk=game.id)
+            game_model = Game.objects.all_with_orphaned().get(pk=game.id)
             created = False
         else:
             data.pop("id")
-            game_model, created = Game.objects.get_or_create(name=game.name)
+            game_model, created = Game.objects.all_with_orphaned().get_or_create(
+                name=game.name
+            )
 
         for field in data:
             if hasattr(game_model, field):
@@ -91,7 +93,7 @@ class DjangoGameRepository(GameRepository):
     @staticmethod
     def remove(identifier: uuid.uuid4):
         try:
-            game = Game.objects.get(id=identifier)
+            game = Game.objects.all_with_orphaned().get(id=identifier)
             game.delete()
         except Game.DoesNotExist as err:
             raise ValueError("No game with this ID") from err

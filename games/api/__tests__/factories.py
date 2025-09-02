@@ -42,6 +42,17 @@ class GameFactory(factory.django.DjangoModelFactory):
     review = factory.Faker("random_int", min=1, max=10)
     notes = factory.Faker("text", max_nb_chars=100)
 
+    @factory.post_generation
+    def platforms(self, create, extracted, **kwargs):
+        if not create:
+            return
+
+        # Create a default platform relationship so game is not orphaned
+        # unless explicitly told not to (platforms=False)
+        if extracted is None:
+            platform = PlatformFactory()
+            GameOnPlatform.objects.create(game=self, platform=platform)
+
 
 class GameOnPlatformFactory(factory.django.DjangoModelFactory):
     class Meta:
@@ -49,6 +60,6 @@ class GameOnPlatformFactory(factory.django.DjangoModelFactory):
 
     game = factory.SubFactory(GameFactory)
     platform = factory.SubFactory(PlatformFactory)
-    source = factory.SubFactory(VendorFactory)
+    vendor = factory.SubFactory(VendorFactory)
     added = factory.Faker("date_this_year")
     price = factory.Faker("pydecimal", left_digits=2, right_digits=2, positive=True)
