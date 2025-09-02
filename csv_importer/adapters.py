@@ -62,8 +62,8 @@ class CSVGameAdapter(GameInterface):
         return None
 
     @property
-    def title(self):
-        return self.data.get("title")
+    def name(self):
+        return self.data.get("name")
 
     @property
     def platforms(self):

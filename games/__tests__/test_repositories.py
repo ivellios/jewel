@@ -12,7 +12,7 @@ from games.repositories import DjangoGameRepository
 def empty_game():
     class SimpleGame(GameInterface):
         id = None
-        title = "Some game"
+        name = "Some game"
         platforms = []
         play_priority = None
         played = False
@@ -33,7 +33,7 @@ def empty_game():
 def simple_game():
     class SimpleGame(GameInterface):
         id = None
-        title = "Some game"
+        name = "Some game"
         platforms = []
         play_priority = 5
         played = True
@@ -68,7 +68,7 @@ def test_repository_create(empty_game):
     game, _ = DjangoGameRepository.create(empty_game)
 
     # then
-    assert game.title == empty_game.title
+    assert game.name == empty_game.name
 
 
 def test_repository_create_simple_game(simple_game):
@@ -77,7 +77,7 @@ def test_repository_create_simple_game(simple_game):
     game, _ = DjangoGameRepository.create(simple_game)
 
     # then
-    assert game.title == simple_game.title
+    assert game.name == simple_game.name
     assert game.play_priority == simple_game.play_priority
     assert game.played
     assert game.controller_support

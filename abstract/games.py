@@ -26,7 +26,7 @@ class GameOnPlatformInterface(abc.ABC):
 
 class GameInterface(abc.ABC):
     id: str | None
-    title: str
+    name: str
     platforms: list[GameOnPlatformInterface]
     play_priority: int | None
     played: bool = False
@@ -40,7 +40,7 @@ class GameInterface(abc.ABC):
     def to_dict(self) -> dict:
         return {
             "id": self.id,
-            "title": self.title,
+            "name": self.name,
             "platforms": [platform.to_dict() for platform in self.platforms]
             if self.platforms
             else [],

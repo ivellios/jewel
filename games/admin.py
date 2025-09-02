@@ -12,7 +12,7 @@ class GameOnPlatformInline(admin.TabularInline):
 
 class GameAdmin(admin.ModelAdmin):
     list_display = [
-        "title",
+        "name",
         "play_priority",
         "played",
         "controller_support",
@@ -31,7 +31,7 @@ class GameAdmin(admin.ModelAdmin):
         "genres",
     ]
     search_fields = [
-        "title",
+        "name",
     ]
     inlines = (GameOnPlatformInline,)
 

@@ -33,7 +33,7 @@ class GameFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = Game
 
-    title = factory.Sequence(lambda n: f"Game {n}")
+    name = factory.Sequence(lambda n: f"Game {n}")
     play_priority = factory.Faker("random_int", min=1, max=10)
     played = factory.Faker("boolean")
     controller_support = factory.Faker("boolean")

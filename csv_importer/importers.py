@@ -32,8 +32,8 @@ class CSVGamesImporter:
             self.load_data()
         for game_data in tqdm(self.data, total=len(self.data)):
             data_adapter = self.adapter_class(game_data)
-            if not data_adapter.title:
+            if not data_adapter.name:
                 continue
             model, created = self.repository.create(data_adapter)
             if not created:
-                tqdm.write(f"Duplicate {model.title}")
+                tqdm.write(f"Duplicate {model.name}")
