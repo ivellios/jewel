@@ -17,9 +17,6 @@ COPY pyproject.toml uv.lock ./
 # Install dependencies (only core, no dev tools)
 RUN uv sync --frozen
 
-# Install uwsgi
-RUN uv pip install uwsgi
-
 # Copy application code
 COPY . .
 
