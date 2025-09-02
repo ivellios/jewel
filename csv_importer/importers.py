@@ -28,7 +28,7 @@ class CSVGamesImporter:
         )
 
     def process(self):
-        if not self.data:
+        if self.data is None:
             self.load_data()
         for game_data in tqdm(self.data, total=len(self.data)):
             data_adapter = self.adapter_class(game_data)
