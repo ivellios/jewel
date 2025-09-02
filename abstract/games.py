@@ -10,7 +10,7 @@ class PlatformInterface(abc.ABC):
 class GameOnPlatformInterface(abc.ABC):
     platform: PlatformInterface
     added: datetime | None
-    source: str | None
+    vendor: str | None
     price: Decimal | None
     identifier: str | None
 
@@ -19,7 +19,7 @@ class GameOnPlatformInterface(abc.ABC):
             "platform": self.platform.name,
             "added": self.added,
             "price": self.price,
-            "source": self.source,
+            "vendor": self.vendor,
             "identifier": self.identifier,
         }
 

@@ -21,8 +21,8 @@ class DjangoGameRepository(GameRepository):
                 price=platform_game.price,
                 identifier=platform_game.identifier,
             )
-            if platform_game.source:
-                DjangoGameRepository.create_source(gop, platform_game.source)
+            if platform_game.vendor:
+                DjangoGameRepository.create_vendor(gop, platform_game.vendor)
 
     @staticmethod
     def create_genres(game_model: Game, genres: list[str]):
@@ -33,15 +33,15 @@ class DjangoGameRepository(GameRepository):
                     game_model.genres.add(genre_model)
 
     @staticmethod
-    def create_source(game_on_platform_model: GameOnPlatform, source: str):
-        vendor, created = Vendor.objects.get_or_create(name=source)
+    def create_vendor(game_on_platform_model: GameOnPlatform, vendor: str):
+        vendor_obj, created = Vendor.objects.get_or_create(name=vendor)
         if (
-            not game_on_platform_model.source
-            or game_on_platform_model.source.pk != vendor.pk
+            not game_on_platform_model.vendor
+            or game_on_platform_model.vendor.pk != vendor_obj.pk
             or created
         ):
-            game_on_platform_model.source = vendor
-            game_on_platform_model.save(update_fields=["source"])
+            game_on_platform_model.vendor = vendor_obj
+            game_on_platform_model.save(update_fields=["vendor"])
 
     @staticmethod
     def create_game_model(game: GameInterface, data: dict) -> tuple[Game, bool]:

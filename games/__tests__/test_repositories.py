@@ -24,7 +24,7 @@ def empty_game():
         genres = []
         price = None
         added = None
-        source = None
+        vendor = None
 
     return SimpleGame()
 
@@ -57,7 +57,7 @@ def simple_game_on_platform():
         added = datetime.now().date()
         identifier = "Some identifier"
         price = Decimal("5.55")
-        source = None
+        vendor = None
 
     return SimpleGameOnPlatform()
 

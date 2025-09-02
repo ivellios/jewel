@@ -10,7 +10,7 @@ class GameOnPlatformInline(admin.TabularInline):
     model = Game.platforms.through
     fields = [
         "platform",
-        "source",
+        "vendor",
         "added",
         "identifier",
         "price",

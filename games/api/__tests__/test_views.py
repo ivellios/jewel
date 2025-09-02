@@ -439,7 +439,7 @@ class GamePlatformCreateAPIViewTestCase(GameAPITestCase):
         super().setUp()
         # Add a platform to game1 for testing
         GameOnPlatform.objects.create(
-            game=self.game1, platform=self.platform1, source=self.vendor1, price=29.99
+            game=self.game1, platform=self.platform1, vendor=self.vendor1, price=29.99
         )
 
     def test_add_platform_to_game_success(self):
@@ -488,7 +488,7 @@ class GamePlatformDetailAPIViewTestCase(GameAPITestCase):
         self.game_platform = GameOnPlatform.objects.create(
             game=self.game1,
             platform=self.platform1,
-            source=self.vendor1,
+            vendor=self.vendor1,
             price=29.99,
             identifier="PC-123",
         )
@@ -504,7 +504,7 @@ class GamePlatformDetailAPIViewTestCase(GameAPITestCase):
 
         self.game_platform.refresh_from_db()
         self.assertEqual(str(self.game_platform.price), "39.99")
-        self.assertEqual(self.game_platform.source.name, "Epic Games Store")
+        self.assertEqual(self.game_platform.vendor.name, "Epic Games Store")
 
     def test_update_game_platform_put(self):
         url = reverse(
@@ -647,14 +647,14 @@ class GamePlatformSoftDeleteTestCase(GameAPITestCase):
         self.game1_platform1 = GameOnPlatform.objects.create(
             game=self.game1,
             platform=self.platform1,
-            source=self.vendor1,
+            vendor=self.vendor1,
             price=29.99,
             identifier="PC-123",
         )
         self.game1_platform2 = GameOnPlatform.objects.create(
             game=self.game1,
             platform=self.platform2,
-            source=self.vendor2,
+            vendor=self.vendor2,
             price=59.99,
             identifier="PS5-456",
         )

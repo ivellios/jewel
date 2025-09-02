@@ -120,7 +120,7 @@ class GameCreateSerializer(serializers.ModelSerializer):
         GameOnPlatform.objects.create(
             game=game,
             platform=platform,
-            source=vendor,
+            vendor=vendor,
             added=added,
             price=price,
         )
@@ -166,7 +166,7 @@ class GamePlatformUpdateSerializer(serializers.ModelSerializer):
             vendor, created = Vendor.objects.get_or_create(
                 name__iexact=vendor_name, defaults={"name": vendor_name}
             )
-            instance.source = vendor
+            instance.vendor = vendor
 
         return super().update(instance, validated_data)
 
@@ -211,6 +211,6 @@ class GamePlatformCreateSerializer(serializers.ModelSerializer):
         return GameOnPlatform.objects.create(
             game=game,
             platform=platform,
-            source=vendor,
+            vendor=vendor,
             **validated_data,
         )

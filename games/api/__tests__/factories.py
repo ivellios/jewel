@@ -60,6 +60,6 @@ class GameOnPlatformFactory(factory.django.DjangoModelFactory):
 
     game = factory.SubFactory(GameFactory)
     platform = factory.SubFactory(PlatformFactory)
-    source = factory.SubFactory(VendorFactory)
+    vendor = factory.SubFactory(VendorFactory)
     added = factory.Faker("date_this_year")
     price = factory.Faker("pydecimal", left_digits=2, right_digits=2, positive=True)

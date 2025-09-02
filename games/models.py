@@ -127,7 +127,7 @@ class GameOnPlatform(models.Model):
         blank=True,
         null=True,
     )
-    source = models.ForeignKey(Vendor, on_delete=models.SET_NULL, null=True, blank=True)
+    vendor = models.ForeignKey(Vendor, on_delete=models.SET_NULL, null=True, blank=True)
     deleted = models.BooleanField(default=False, db_index=True)
     deleted_at = models.DateTimeField(null=True, blank=True)
 
