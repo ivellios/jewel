@@ -1,0 +1,457 @@
+{% extends "admin/base_site.html" %}
+{% load i18n admin_urls static admin_modify %}
+
+{% block title %}{{ title }} | {{ site_title|default:_('Django site admin') }}{% endblock %}
+
+{% block extrahead %}{{ block.super }}
+<script src="{% url 'admin:jsi18n' %}"></script>
+<script src="{% static 'admin/js/core.js' %}"></script>
+<style>
+.bulk-import-form {
+    max-width: 900px;
+    margin: 0 auto;
+    color: var(--body-fg);
+}
+
+.bundle-section {
+    background: var(--darkened-bg);
+    border: 1px solid var(--hairline-color);
+    border-radius: 4px;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.section-title {
+    font-size: 1.1em;
+    font-weight: 600;
+    margin-bottom: 1rem;
+    color: var(--body-fg);
+    border-bottom: 1px solid var(--hairline-color);
+    padding-bottom: 0.5rem;
+}
+
+.form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+    margin-bottom: 1rem;
+}
+
+.form-field {
+    display: flex;
+    flex-direction: column;
+}
+
+.form-field label {
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+    color: var(--body-fg);
+}
+
+.form-field input,
+.form-field select,
+.form-field textarea {
+    padding: 0.5rem;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    font-size: 0.9em;
+    background: var(--body-bg);
+    color: var(--body-fg);
+    transition: border-color 0.2s ease;
+}
+
+.form-field input:focus,
+.form-field select:focus,
+.form-field textarea:focus {
+    outline: none;
+    border-color: var(--primary);
+}
+
+.form-field textarea {
+    resize: vertical;
+    min-height: 80px;
+}
+
+.help {
+    color: var(--body-quiet-color);
+    font-size: 0.85em;
+    margin-top: 0.25rem;
+    font-style: italic;
+}
+
+.quick-input-section {
+    background: var(--darkened-bg);
+    border: 1px solid var(--hairline-color);
+    border-radius: 4px;
+    padding: 1.5rem;
+    margin: 1.5rem 0;
+    position: relative;
+}
+
+.quick-input-section::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 4px;
+    background: var(--accent);
+    border-radius: 4px 0 0 4px;
+}
+
+.formset-container {
+    border: 1px solid var(--hairline-color);
+    border-radius: 4px;
+    padding: 1.5rem;
+    margin: 1.5rem 0;
+    background: var(--darkened-bg);
+}
+
+.games-header {
+    display: grid;
+    grid-template-columns: 2fr 1.5fr 1fr;
+    gap: 1rem;
+    padding: 0.75rem;
+    background: var(--primary);
+    color: white;
+    border-radius: 4px;
+    font-weight: 600;
+    margin-bottom: 1rem;
+}
+
+.game-row {
+    display: grid;
+    grid-template-columns: 2fr 1.5fr 1fr;
+    gap: 1rem;
+    padding: 0.75rem;
+    margin-bottom: 0.75rem;
+    border: 1px solid var(--hairline-color);
+    border-radius: 4px;
+    background: var(--body-bg);
+    transition: background-color 0.2s ease;
+}
+
+.game-row:hover {
+    background: var(--darkened-bg);
+}
+
+.game-row input,
+.game-row select {
+    padding: 0.5rem;
+    border: 1px solid var(--border-color);
+    border-radius: 3px;
+    font-size: 0.9em;
+    background: var(--body-bg);
+    color: var(--body-fg);
+}
+
+.game-row input:focus,
+.game-row select:focus {
+    outline: none;
+    border-color: var(--primary);
+}
+
+.submit-row {
+    margin-top: 2rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--hairline-color);
+    text-align: center;
+}
+
+.btn {
+    padding: 0.75rem 2rem;
+    margin: 0 0.5rem;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    text-decoration: none;
+    display: inline-block;
+    font-weight: 600;
+    transition: all 0.2s ease;
+}
+
+.btn-primary {
+    background: var(--primary);
+    color: white;
+}
+
+.btn-primary:hover {
+    background: var(--primary-fg);
+    transform: translateY(-1px);
+}
+
+.btn-secondary {
+    background: var(--body-quiet-color);
+    color: white;
+}
+
+.btn-secondary:hover {
+    background: var(--body-fg);
+}
+
+.btn-add {
+    background: var(--primary);
+    color: white;
+    padding: 0.5rem 1rem;
+    margin-top: 1rem;
+    font-size: 0.9em;
+}
+
+.btn-add:hover {
+    opacity: 0.8;
+}
+
+.errorlist {
+    list-style: none;
+    padding: 0;
+    margin: 0.5rem 0 0 0;
+}
+
+.errorlist li {
+    color: var(--error-fg);
+    font-size: 0.85em;
+    font-weight: 500;
+}
+
+.form-field.has-errors input,
+.form-field.has-errors select,
+.form-field.has-errors textarea {
+    border-color: var(--error-fg);
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+    .form-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .games-header,
+    .game-row {
+        grid-template-columns: 1fr;
+        gap: 0.5rem;
+    }
+
+    .bulk-import-form {
+        max-width: 100%;
+        margin: 0 1rem;
+    }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div id="content-main">
+    <form method="post" class="bulk-import-form">
+        {% csrf_token %}
+
+        <h1>{{ title }}</h1>
+
+        {% if form.non_field_errors %}
+            <ul class="errorlist">
+                {% for error in form.non_field_errors %}
+                    <li>{{ error }}</li>
+                {% endfor %}
+            </ul>
+        {% endif %}
+
+        {% if formset.non_form_errors %}
+            <ul class="errorlist">
+                {% for error in formset.non_form_errors %}
+                    <li>{{ error }}</li>
+                {% endfor %}
+            </ul>
+        {% endif %}
+
+        <div class="bundle-section">
+            <h2 class="section-title">Bundle Information</h2>
+
+            <div class="form-grid">
+                <div class="form-field{% if form.vendor.errors %} has-errors{% endif %}">
+                    {{ form.vendor.label_tag }}
+                    {{ form.vendor }}
+                    {% if form.vendor.errors %}
+                        <ul class="errorlist">
+                            {% for error in form.vendor.errors %}
+                                <li>{{ error }}</li>
+                            {% endfor %}
+                        </ul>
+                    {% endif %}
+                    <div class="help">{{ form.vendor.help_text }}</div>
+                </div>
+
+                <div class="form-field{% if form.bundle_date.errors %} has-errors{% endif %}">
+                    {{ form.bundle_date.label_tag }}
+                    {{ form.bundle_date }}
+                    {% if form.bundle_date.errors %}
+                        <ul class="errorlist">
+                            {% for error in form.bundle_date.errors %}
+                                <li>{{ error }}</li>
+                            {% endfor %}
+                        </ul>
+                    {% endif %}
+                    <div class="help">{{ form.bundle_date.help_text }}</div>
+                </div>
+
+                <div class="form-field{% if form.bundle_price.errors %} has-errors{% endif %}">
+                    {{ form.bundle_price.label_tag }}
+                    {{ form.bundle_price }}
+                    {% if form.bundle_price.errors %}
+                        <ul class="errorlist">
+                            {% for error in form.bundle_price.errors %}
+                                <li>{{ error }}</li>
+                            {% endfor %}
+                        </ul>
+                    {% endif %}
+                    <div class="help">{{ form.bundle_price.help_text }}</div>
+                </div>
+
+                <div class="form-field{% if form.global_platform.errors %} has-errors{% endif %}">
+                    {{ form.global_platform.label_tag }}
+                    {{ form.global_platform }}
+                    {% if form.global_platform.errors %}
+                        <ul class="errorlist">
+                            {% for error in form.global_platform.errors %}
+                                <li>{{ error }}</li>
+                            {% endfor %}
+                        </ul>
+                    {% endif %}
+                    <div class="help">{{ form.global_platform.help_text }}</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="quick-input-section">
+            <h3 class="section-title">Quick Input (Optional)</h3>
+
+            <div class="form-field{% if form.quick_games.errors %} has-errors{% endif %}">
+                {{ form.quick_games.label_tag }}
+                {{ form.quick_games }}
+                {% if form.quick_games.errors %}
+                    <ul class="errorlist">
+                        {% for error in form.quick_games.errors %}
+                            <li>{{ error }}</li>
+                        {% endfor %}
+                    </ul>
+                {% endif %}
+                <div class="help">{{ form.quick_games.help_text }}</div>
+            </div>
+        </div>
+
+        <div class="formset-container">
+            <h3 class="section-title">Individual Games (Optional)</h3>
+            <div class="help" style="margin-bottom: 1.5rem;">
+                Use this section for games that need individual platform assignments or play priorities.
+            </div>
+
+            {{ formset.management_form }}
+
+            <div class="games-header">
+                <div>Game Name</div>
+                <div>Platform</div>
+                <div>Play Priority</div>
+            </div>
+
+            {% for form in formset.forms %}
+                <div class="game-row">
+                    <div>
+                        {{ form.game_name }}
+                        {% if form.game_name.errors %}
+                            <ul class="errorlist">
+                                {% for error in form.game_name.errors %}
+                                    <li>{{ error }}</li>
+                                {% endfor %}
+                            </ul>
+                        {% endif %}
+                    </div>
+                    <div>
+                        {{ form.platform }}
+                        {% if form.platform.errors %}
+                            <ul class="errorlist">
+                                {% for error in form.platform.errors %}
+                                    <li>{{ error }}</li>
+                                {% endfor %}
+                            </ul>
+                        {% endif %}
+                    </div>
+                    <div>
+                        {{ form.play_priority }}
+                        {% if form.play_priority.errors %}
+                            <ul class="errorlist">
+                                {% for error in form.play_priority.errors %}
+                                    <li>{{ error }}</li>
+                                {% endfor %}
+                            </ul>
+                        {% endif %}
+                    </div>
+                </div>
+            {% endfor %}
+
+            <button type="button" id="add-more-games" class="btn btn-add">Add More Game Forms</button>
+        </div>
+
+        <div class="submit-row">
+            <input type="submit" value="Import Games" class="btn btn-primary">
+        </div>
+    </form>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Add functionality to add more game forms
+    const addButton = document.getElementById('add-more-games');
+    const formsetContainer = document.querySelector('.formset-container');
+    let formCount = {{ formset.total_form_count }};
+
+    addButton.addEventListener('click', function() {
+        // Create 3 more empty forms
+        for (let i = 0; i < 3; i++) {
+            const newForm = document.createElement('div');
+            newForm.className = 'game-row';
+            newForm.innerHTML = `
+                <div>
+                    <input type="text" name="form-${formCount}-game_name" maxlength="255" placeholder="Enter game name" id="id_form-${formCount}-game_name">
+                </div>
+                <div>
+                    <select name="form-${formCount}-platform" id="id_form-${formCount}-platform">
+                        <option value="">---------</option>
+                        {% for platform in form.global_platform.field.queryset %}
+                            <option value="{{ platform.pk }}">{{ platform.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <input type="number" name="form-${formCount}-play_priority" min="1" max="10" placeholder="1-10" id="id_form-${formCount}-play_priority">
+                </div>
+            `;
+            formsetContainer.insertBefore(newForm, addButton);
+            formCount++;
+        }
+
+        // Update the total form count
+        document.getElementById('id_form-TOTAL_FORMS').value = formCount;
+    });
+
+    // Handle default platform indication (visual feedback only)
+    const globalPlatformSelect = document.querySelector('#id_global_platform');
+    const platformSelects = document.querySelectorAll('[id$="-platform"]:not(#id_global_platform)');
+
+    if (globalPlatformSelect) {
+        // Add visual indication when default platform is set
+        globalPlatformSelect.addEventListener('change', function() {
+            const helpElements = document.querySelectorAll('.formset-container .help');
+            if (this.value && helpElements.length > 0) {
+                const selectedOption = this.options[this.selectedIndex];
+                helpElements[0].innerHTML = `Use this section for games that need individual platform assignments or play priorities.<br><strong>Default platform (${selectedOption.text}) will be used for games without specific platform selected.</strong>`;
+            } else if (helpElements.length > 0) {
+                helpElements[0].innerHTML = 'Use this section for games that need individual platform assignments or play priorities.';
+            }
+        });
+
+        // Trigger on page load if default platform is already selected
+        if (globalPlatformSelect.value) {
+            globalPlatformSelect.dispatchEvent(new Event('change'));
+        }
+    }
+});
+</script>
+{% endblock %}
