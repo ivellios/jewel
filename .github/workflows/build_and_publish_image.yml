@@ -32,6 +32,6 @@ jobs:
           context: .
           file: ./docker/prod.Dockerfile
           push: true
-          tags: jewel:latest
-          cache-from: type=registry,ref=jewel:buildcache
-          cache-to: type=registry,ref=jewel:buildcache,mode=max
+          tags: ${{ env.IMAGE_NAME }}:latest
+          cache-from: type=registry,ref=${{ env.IMAGE_NAME }}:buildcache
+          cache-to: type=registry,ref=${{ env.IMAGE_NAME }}:buildcache,mode=max
