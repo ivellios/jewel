@@ -2,6 +2,7 @@ import uuid
 
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
+from django.utils import timezone
 
 
 class NamedModel(models.Model):
@@ -27,11 +28,30 @@ class Genre(NamedModel, models.Model):
 
 
 class GameQuerySet(models.QuerySet):
-    pass
+    def with_active_platforms(self):
+        """Return games that have at least one non-deleted platform"""
+        return self.filter(platforms_meta_data__deleted=False).distinct()
+
+    def orphaned(self):
+        """Return games with no active platforms (all platforms soft-deleted)"""
+        # Games that either have no platforms or all platforms are deleted
+        return self.exclude(platforms_meta_data__deleted=False)
 
 
 class GameManager(models.Manager):
-    pass
+    def get_queryset(self):
+        """Override to exclude orphaned games by default"""
+        return (
+            super().get_queryset().filter(platforms_meta_data__deleted=False).distinct()
+        )
+
+    def all_with_orphaned(self):
+        """Return all games including orphaned ones"""
+        return super().get_queryset()
+
+    def orphaned_only(self):
+        """Return only orphaned games (no platforms or all platforms deleted)"""
+        return GameQuerySet(self.model, using=self._db).orphaned()
 
 
 class Game(models.Model):
@@ -108,6 +128,20 @@ class GameOnPlatform(models.Model):
         null=True,
     )
     source = models.ForeignKey(Vendor, on_delete=models.SET_NULL, null=True, blank=True)
+    deleted = models.BooleanField(default=False, db_index=True)
+    deleted_at = models.DateTimeField(null=True, blank=True)
 
     def __str__(self):
         return f"{self.game.name} on {self.platform.name}"
+
+    def soft_delete(self):
+        """Mark this game-platform relationship as deleted"""
+        self.deleted = True
+        self.deleted_at = timezone.now()
+        self.save(update_fields=["deleted", "deleted_at"])
+
+    def restore(self):
+        """Restore this game-platform relationship"""
+        self.deleted = False
+        self.deleted_at = None
+        self.save(update_fields=["deleted", "deleted_at"])

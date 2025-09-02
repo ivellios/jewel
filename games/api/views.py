@@ -72,7 +72,9 @@ class GamePlatformDetailAPIView(generics.RetrieveUpdateDestroyAPIView):
         try:
             game = Game.objects.get(id=self.kwargs["game_id"])
             platform = Platform.objects.get(id=self.kwargs["platform_id"])
-            return GameOnPlatform.objects.get(game=game, platform=platform)
+            return GameOnPlatform.objects.get(
+                game=game, platform=platform, deleted=False
+            )
         except (Game.DoesNotExist, Platform.DoesNotExist, GameOnPlatform.DoesNotExist):
             return None
 
@@ -123,7 +125,7 @@ class GamePlatformDetailAPIView(generics.RetrieveUpdateDestroyAPIView):
             )
 
         platform_name = game_platform.platform.name
-        game_platform.delete()
+        game_platform.soft_delete()
 
         return Response(
             {"message": f"Platform '{platform_name}' removed from game successfully"},

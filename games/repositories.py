@@ -46,11 +46,13 @@ class DjangoGameRepository(GameRepository):
     @staticmethod
     def create_game_model(game: GameInterface, data: dict) -> tuple[Game, bool]:
         if game.id:
-            game_model = Game.objects.get(pk=game.id)
+            game_model = Game.objects.all_with_orphaned().get(pk=game.id)
             created = False
         else:
             data.pop("id")
-            game_model, created = Game.objects.get_or_create(name=game.name)
+            game_model, created = Game.objects.all_with_orphaned().get_or_create(
+                name=game.name
+            )
 
         for field in data:
             if hasattr(game_model, field):
@@ -91,7 +93,7 @@ class DjangoGameRepository(GameRepository):
     @staticmethod
     def remove(identifier: uuid.uuid4):
         try:
-            game = Game.objects.get(id=identifier)
+            game = Game.objects.all_with_orphaned().get(id=identifier)
             game.delete()
         except Game.DoesNotExist as err:
             raise ValueError("No game with this ID") from err

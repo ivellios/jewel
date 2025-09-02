@@ -527,10 +527,17 @@ class GamePlatformDetailAPIViewTestCase(GameAPITestCase):
         response = self.client.delete(url, **self._get_auth_headers())
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-        # Verify relationship was deleted
+        # Verify relationship was soft deleted (still exists but marked as deleted)
+        game_platform = GameOnPlatform.objects.get(
+            game=self.game1, platform=self.platform1
+        )
+        self.assertTrue(game_platform.deleted)
+        self.assertIsNotNone(game_platform.deleted_at)
+
+        # Verify it's not accessible via API anymore (filtered out by deleted=False)
         self.assertFalse(
             GameOnPlatform.objects.filter(
-                game=self.game1, platform=self.platform1
+                game=self.game1, platform=self.platform1, deleted=False
             ).exists()
         )
 
@@ -594,4 +601,147 @@ class GameUpdateAPIViewTestCase(GameAPITestCase):
         url = reverse("game-detail-api", kwargs={"id": nonexistent_id})
         data = {"name": "Should Fail"}
         response = self.client.patch(url, data, **self._get_auth_headers())
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+
+class GamePlatformSoftDeleteTestCase(GameAPITestCase):
+    def setUp(self):
+        # Create a staff user for authentication
+        self.staff_user = UserFactory()
+
+        # Create test platforms and vendors
+        self.platform1 = PlatformFactory(name="PC")
+        self.platform2 = PlatformFactory(name="PlayStation 5")
+        self.vendor1 = VendorFactory(name="Steam")
+        self.vendor2 = VendorFactory(name="Epic Games Store")
+
+        # Create test games WITHOUT default platforms (platforms=False)
+        self.game1 = GameFactory(
+            name="The Witcher 3",
+            play_priority=9,
+            played=False,
+            controller_support=True,
+            max_players=1,
+            platforms=False,  # Don't create default platform
+        )
+
+        self.game2 = GameFactory(
+            name="Cyberpunk 2077",
+            play_priority=8,
+            played=True,
+            controller_support=True,
+            max_players=1,
+            platforms=False,  # Don't create default platform
+        )
+
+        self.game3 = GameFactory(
+            name="Portal 2",
+            play_priority=10,
+            played=True,
+            controller_support=False,
+            max_players=2,
+            platforms=False,  # Don't create default platform
+        )
+
+        # Create game-platform relationships for testing
+        self.game1_platform1 = GameOnPlatform.objects.create(
+            game=self.game1,
+            platform=self.platform1,
+            source=self.vendor1,
+            price=29.99,
+            identifier="PC-123",
+        )
+        self.game1_platform2 = GameOnPlatform.objects.create(
+            game=self.game1,
+            platform=self.platform2,
+            source=self.vendor2,
+            price=59.99,
+            identifier="PS5-456",
+        )
+
+    def test_delete_platform_relationship_soft_delete(self):
+        """Test that DELETE on game-platform relationship soft deletes it"""
+        url = reverse(
+            "game-platform-detail-api",
+            kwargs={"game_id": self.game1.id, "platform_id": self.platform1.id},
+        )
+        response = self.client.delete(url, **self._get_auth_headers())
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # GameOnPlatform should still exist but be marked as deleted
+        self.game1_platform1.refresh_from_db()
+        self.assertTrue(self.game1_platform1.deleted)
+        self.assertIsNotNone(self.game1_platform1.deleted_at)
+
+    def test_game_with_deleted_platforms_excluded_from_list(self):
+        """Test that games with all platforms deleted are excluded from game list"""
+        # Initially should have 3 games
+        url = reverse("game-list-create-api")
+        response = self.client.get(url, **self._get_auth_headers())
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        initial_count = len(response.data)
+
+        # Soft delete all platforms for game1
+        self.game1_platform1.soft_delete()
+        self.game1_platform2.soft_delete()
+
+        # Now should have one less game
+        response = self.client.get(url, **self._get_auth_headers())
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), initial_count - 1)
+
+        # Verify the orphaned game is not in the results
+        game_ids = [game["id"] for game in response.data]
+        self.assertNotIn(str(self.game1.id), game_ids)
+
+    def test_orphaned_game_returns_404_on_detail(self):
+        """Test that GET on orphaned game (all platforms deleted) returns 404"""
+        # Soft delete all platforms for game1
+        self.game1_platform1.soft_delete()
+        self.game1_platform2.soft_delete()
+
+        url = reverse("game-detail-api", kwargs={"id": self.game1.id})
+        response = self.client.get(url, **self._get_auth_headers())
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_game_with_some_active_platforms_still_visible(self):
+        """Test that game with some active platforms is still visible"""
+        # Soft delete one platform but not the other
+        self.game1_platform1.soft_delete()
+
+        # Game should still be visible in list
+        url = reverse("game-list-create-api")
+        response = self.client.get(url, **self._get_auth_headers())
+        game_ids = [game["id"] for game in response.data]
+        self.assertIn(str(self.game1.id), game_ids)
+
+        # Game detail should still work
+        url = reverse("game-detail-api", kwargs={"id": self.game1.id})
+        response = self.client.get(url, **self._get_auth_headers())
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_delete_nonexistent_platform_relationship(self):
+        """Test DELETE on nonexistent game-platform relationship returns 404"""
+        # Use platform not associated with game1
+        url = reverse(
+            "game-platform-detail-api",
+            kwargs={
+                "game_id": self.game1.id,
+                "platform_id": 9999,  # Doesn't exist
+            },
+        )
+        response = self.client.delete(url, **self._get_auth_headers())
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_delete_already_deleted_platform_relationship(self):
+        """Test DELETE on already deleted platform relationship returns 404"""
+        # First soft delete the relationship
+        self.game1_platform1.soft_delete()
+
+        # Try to delete again
+        url = reverse(
+            "game-platform-detail-api",
+            kwargs={"game_id": self.game1.id, "platform_id": self.platform1.id},
+        )
+        response = self.client.delete(url, **self._get_auth_headers())
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
