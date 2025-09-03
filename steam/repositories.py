@@ -1,5 +1,4 @@
 import requests
-from fuzzywuzzy import fuzz
 
 from abstract.games import SteamGameInterface
 
@@ -13,27 +12,14 @@ class SteamGamesRepository:
         return SteamGame.objects.update_or_create(appid=appid, name=name)
 
     @staticmethod
-    def find_by_name(name) -> tuple[SteamGame | None, int]:
-        max_ratio = 0
-        max_ratio_game = None
-        try:
-            game = SteamGame.objects.get(name=name)
-            max_ratio = 100
-        except SteamGame.MultipleObjectsReturned:
-            print(f"Multiple games: {name}")
-            return None, 0
-        except SteamGame.DoesNotExist:
-            for game in SteamGame.objects.all().iterator():
-                ratio = fuzz.token_sort_ratio(name, game.name)
-                if ratio > max_ratio:
-                    max_ratio = ratio
-                    max_ratio_game = game.appid
-            try:
-                game = SteamGame.objects.get(appid=max_ratio_game)
-            except SteamGame.MultipleObjectsReturned:
-                return None, 0
+    def get_all_names() -> list[str]:
+        return SteamGame.objects.all_names()
 
-        return game, max_ratio
+    @staticmethod
+    def find_by_name(
+        name, all_names: list[str] = None, threshold: int = 95
+    ) -> SteamGame | None:
+        return SteamGame.objects.fuzzy_search(name, all_names, threshold=threshold)
 
     @staticmethod
     def pull_game(game: SteamGame) -> SteamGameInterface | None:

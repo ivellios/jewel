@@ -19,37 +19,22 @@ class Command(BaseCommand):
         game_copies: Iterable[GameOnPlatform] = GameOnPlatform.objects.filter(
             platform=steam_platform, identifier__isnull=True
         )
-        matches = []
-        multiple_matches = []
+        fuzzy_threshold = 95
+        no_matches = []
+        all_names = steam_repository.get_all_names()
         for game_copy in tqdm(game_copies):
             game = game_copy.game
-            steam_game, score = steam_repository.find_by_name(game.name)
-            if steam_game is None:
-                multiple_matches.append((game.name, game.id))
-                tqdm.write(f'Multiple exact matches found for "{game.name}"')
+            steam_game = steam_repository.find_by_name(
+                game.name, all_names, threshold=fuzzy_threshold
+            )
+            if not steam_game:
+                no_matches.append((game.name, game.id))
+                tqdm.write(f'Could not find name "{game.name}" in Steam games DB')
                 continue
 
-            if score == 100:
-                game_copy.identifier = steam_game.appid
-                game_copy.save()
-            if score < 100:
-                matches.append(
-                    (game.name, game.id, steam_game.name, steam_game.appid, score)
-                )
-                tqdm.write(f"{steam_game}, {game.name}, {score}")
-            # details = steam_repository.pull_game(steam_game)
+            game_copy.identifier = steam_game.appid
+            game_copy.save()
 
-        print(f"Found {len(matches)} matches that need manual review")
-        for game in matches:
-            pprint(
-                f"Match: {game[0]}({game[1]}) - {game[2]} (https://store.steampowered.com/api/appdetails?appids={game[3]}) | score: {game[3]}"
-            )
-            input("Should match be saved? (y/n)")
-            if input().lower() == "y":
-                GameOnPlatform.objects.filter(
-                    game_id=game[1], platform=steam_platform, identifier__isnull=True
-                ).update(identifier=game[3])
-
-        print(f"Found {len(multiple_matches)} games with multiple matches")
-        for game in multiple_matches:
-            pprint(f"Multiple matches found for {game[0]} (ID: {game[1]})")
+        print(f"Found {len(no_matches)} games with no matches:")
+        for game in no_matches:
+            pprint(f"- {game[0]} (ID: {game[1]})")
