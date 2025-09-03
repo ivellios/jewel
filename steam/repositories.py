@@ -9,7 +9,10 @@ from .models import SteamGame
 class SteamGamesRepository:
     @staticmethod
     def create(appid, name):
-        return SteamGame.objects.update_or_create(appid=appid, name=name)
+        try:
+            SteamGame.objects.get(name=name)
+        except SteamGame.DoesNotExist:
+            SteamGame.objects.create(appid=appid, name=name)
 
     @staticmethod
     def get_all_names() -> list[str]:
