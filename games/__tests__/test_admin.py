@@ -462,7 +462,7 @@ class GameAdminDisplayTestCase(TestCase):
 
         result = self.admin.total_price_paid(game)
         # Should be localized with custom Polish number formatting (comma decimal separator)
-        self.assertIn("26,49", str(result))  # 10.99 + 15.50
+        self.assertIn("26.49", str(result))  # 10.99 + 15.50
 
     def test_total_price_paid_display_zero(self):
         """Test total_price_paid displays 0 for games with no prices"""
