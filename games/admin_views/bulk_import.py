@@ -69,6 +69,7 @@ def process_bulk_import(request, form, formset):
     bundle_date = form.cleaned_data["bundle_date"]
     bundle_price = form.cleaned_data["bundle_price"]
     global_platform = form.cleaned_data.get("global_platform")
+    global_notes = form.cleaned_data.get("global_notes", "").strip() or None
 
     # Collect all games to import
     games_to_import = []
@@ -80,6 +81,9 @@ def process_bulk_import(request, form, formset):
         # Use specific platform if provided, otherwise fallback to global_platform
         platform = game_data["platform"] or global_platform
         play_priority = game_data.get("play_priority")
+        # Use individual notes if provided and not empty, otherwise use global notes
+        individual_notes = game_data.get("notes", "").strip() or None
+        notes = individual_notes if individual_notes else global_notes
 
         if not platform:
             # Skip games without any platform (should be caught by validation)
@@ -90,6 +94,7 @@ def process_bulk_import(request, form, formset):
                 "name": game_name,
                 "platform": platform,
                 "play_priority": play_priority,
+                "notes": notes,
             }
         )
 
@@ -103,6 +108,7 @@ def process_bulk_import(request, form, formset):
                     "name": game_name,
                     "platform": global_platform,
                     "play_priority": None,
+                    "notes": global_notes,
                 }
             )
 
@@ -130,7 +136,9 @@ def process_bulk_import(request, form, formset):
     for game_data in new_games:
         # Create game
         game = Game.objects.create(
-            name=game_data["name"], play_priority=game_data["play_priority"]
+            name=game_data["name"],
+            play_priority=game_data["play_priority"],
+            notes=game_data["notes"],
         )
 
         # Create platform relationship
