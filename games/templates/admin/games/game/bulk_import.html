@@ -109,7 +109,7 @@
 
 .games-header {
     display: grid;
-    grid-template-columns: 2fr 1.5fr 1fr;
+    grid-template-columns: 2fr 1.5fr 1fr 2fr;
     gap: 1rem;
     padding: 0.75rem;
     background: var(--primary);
@@ -121,7 +121,7 @@
 
 .game-row {
     display: grid;
-    grid-template-columns: 2fr 1.5fr 1fr;
+    grid-template-columns: 2fr 1.5fr 1fr 2fr;
     gap: 1rem;
     padding: 0.75rem;
     margin-bottom: 0.75rem;
@@ -318,6 +318,19 @@
                     <div class="help">{{ form.global_platform.help_text }}</div>
                 </div>
             </div>
+
+            <div class="form-field{% if form.global_notes.errors %} has-errors{% endif %}">
+                {{ form.global_notes.label_tag }}
+                {{ form.global_notes }}
+                {% if form.global_notes.errors %}
+                    <ul class="errorlist">
+                        {% for error in form.global_notes.errors %}
+                            <li>{{ error }}</li>
+                        {% endfor %}
+                    </ul>
+                {% endif %}
+                <div class="help">{{ form.global_notes.help_text }}</div>
+            </div>
         </div>
 
         <div class="quick-input-section">
@@ -349,6 +362,7 @@
                 <div>Game Name</div>
                 <div>Platform</div>
                 <div>Play Priority</div>
+                <div>Notes</div>
             </div>
 
             {% for form in formset.forms %}
@@ -378,6 +392,16 @@
                         {% if form.play_priority.errors %}
                             <ul class="errorlist">
                                 {% for error in form.play_priority.errors %}
+                                    <li>{{ error }}</li>
+                                {% endfor %}
+                            </ul>
+                        {% endif %}
+                    </div>
+                    <div>
+                        {{ form.notes }}
+                        {% if form.notes.errors %}
+                            <ul class="errorlist">
+                                {% for error in form.notes.errors %}
                                     <li>{{ error }}</li>
                                 {% endfor %}
                             </ul>
@@ -421,6 +445,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 </div>
                 <div>
                     <input type="number" name="form-${formCount}-play_priority" min="1" max="10" placeholder="1-10" id="id_form-${formCount}-play_priority">
+                </div>
+                <div>
+                    <textarea name="form-${formCount}-notes" rows="2" placeholder="Optional notes for this specific game" id="id_form-${formCount}-notes"></textarea>
                 </div>
             `;
             formsetContainer.insertBefore(newForm, addButton);

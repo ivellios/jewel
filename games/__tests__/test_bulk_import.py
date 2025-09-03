@@ -813,3 +813,231 @@ class BulkImportViewTestCase(TestCase):
         # Check that the form contains today's date as default
         today = date.today().isoformat()
         self.assertContains(response, f'value="{today}"')
+
+    def test_bulk_import_with_global_notes_only(self):
+        """Test that global notes are applied to all games when no individual notes provided"""
+        request = self.factory.post(
+            "/admin/games/game/bulk_import/",
+            {
+                "vendor": self.vendor.id,
+                "bundle_date": "2024-01-15",
+                "bundle_price": "30.00",
+                "global_platform": self.platform_steam.id,
+                "global_notes": "These are global notes for all games",
+                "quick_games": "Quick Game 1, Quick Game 2",
+                "form-TOTAL_FORMS": "1",
+                "form-INITIAL_FORMS": "0",
+                "form-MIN_NUM_FORMS": "0",
+                "form-MAX_NUM_FORMS": "1000",
+                "form-0-game_name": "Detailed Game",
+                "form-0-platform": self.platform_steam.id,
+                "form-0-play_priority": "5",
+            },
+        )
+        request.user = self.user
+        add_messages_to_request(request)
+
+        response = bulk_import_view(request)
+        self.assertEqual(response.status_code, 302)
+
+        # All games should have the global notes
+        quick_game1 = Game.objects.get(name="Quick Game 1")
+        quick_game2 = Game.objects.get(name="Quick Game 2")
+        detailed_game = Game.objects.get(name="Detailed Game")
+
+        self.assertEqual(quick_game1.notes, "These are global notes for all games")
+        self.assertEqual(quick_game2.notes, "These are global notes for all games")
+        self.assertEqual(detailed_game.notes, "These are global notes for all games")
+
+    def test_bulk_import_with_individual_notes_override(self):
+        """Test that individual notes override global notes"""
+        request = self.factory.post(
+            "/admin/games/game/bulk_import/",
+            {
+                "vendor": self.vendor.id,
+                "bundle_date": "2024-01-15",
+                "bundle_price": "20.00",
+                "global_platform": self.platform_steam.id,
+                "global_notes": "These are global notes",
+                "quick_games": "Quick Game",
+                "form-TOTAL_FORMS": "2",
+                "form-INITIAL_FORMS": "0",
+                "form-MIN_NUM_FORMS": "0",
+                "form-MAX_NUM_FORMS": "1000",
+                "form-0-game_name": "Game With Individual Notes",
+                "form-0-platform": self.platform_steam.id,
+                "form-0-notes": "These are individual notes that should override",
+                "form-1-game_name": "Game Without Individual Notes",
+                "form-1-platform": self.platform_steam.id,
+            },
+        )
+        request.user = self.user
+        add_messages_to_request(request)
+
+        response = bulk_import_view(request)
+        self.assertEqual(response.status_code, 302)
+
+        # Quick game should use global notes
+        quick_game = Game.objects.get(name="Quick Game")
+        self.assertEqual(quick_game.notes, "These are global notes")
+
+        # Game with individual notes should use individual notes (override)
+        game_with_individual = Game.objects.get(name="Game With Individual Notes")
+        self.assertEqual(
+            game_with_individual.notes,
+            "These are individual notes that should override",
+        )
+
+        # Game without individual notes should use global notes
+        game_without_individual = Game.objects.get(name="Game Without Individual Notes")
+        self.assertEqual(game_without_individual.notes, "These are global notes")
+
+    def test_bulk_import_mixed_notes_scenarios(self):
+        """Test mix of games with/without individual notes and empty notes"""
+        request = self.factory.post(
+            "/admin/games/game/bulk_import/",
+            {
+                "vendor": self.vendor.id,
+                "bundle_date": "2024-01-15",
+                "bundle_price": "40.00",
+                "global_platform": self.platform_steam.id,
+                "global_notes": "Global notes for all",
+                "form-TOTAL_FORMS": "3",
+                "form-INITIAL_FORMS": "0",
+                "form-MIN_NUM_FORMS": "0",
+                "form-MAX_NUM_FORMS": "1000",
+                "form-0-game_name": "Game With Override",
+                "form-0-platform": self.platform_steam.id,
+                "form-0-notes": "Specific notes for this game",
+                "form-1-game_name": "Game Using Global",
+                "form-1-platform": self.platform_steam.id,
+                "form-1-notes": "",  # Empty individual notes
+                "form-2-game_name": "Game With Empty Individual Notes",
+                "form-2-platform": self.platform_steam.id,
+                "form-2-notes": "   ",  # Whitespace-only notes
+            },
+        )
+        request.user = self.user
+        add_messages_to_request(request)
+
+        response = bulk_import_view(request)
+        self.assertEqual(response.status_code, 302)
+
+        # Game with individual notes should use them
+        game_override = Game.objects.get(name="Game With Override")
+        self.assertEqual(game_override.notes, "Specific notes for this game")
+
+        # Game with empty individual notes should use global notes
+        game_using_global = Game.objects.get(name="Game Using Global")
+        self.assertEqual(game_using_global.notes, "Global notes for all")
+
+        # Game with whitespace-only individual notes should use global notes
+        game_empty_individual = Game.objects.get(
+            name="Game With Empty Individual Notes"
+        )
+        self.assertEqual(game_empty_individual.notes, "Global notes for all")
+
+    def test_bulk_import_quick_games_inherit_global_notes(self):
+        """Test that quick games always inherit global notes"""
+        request = self.factory.post(
+            "/admin/games/game/bulk_import/",
+            {
+                "vendor": self.vendor.id,
+                "bundle_date": "2024-01-15",
+                "bundle_price": "15.00",
+                "global_platform": self.platform_steam.id,
+                "global_notes": "Notes for quick games",
+                "quick_games": "Quick Game 1, Quick Game 2, Quick Game 3",
+                "form-TOTAL_FORMS": "0",
+                "form-INITIAL_FORMS": "0",
+                "form-MIN_NUM_FORMS": "0",
+                "form-MAX_NUM_FORMS": "1000",
+            },
+        )
+        request.user = self.user
+        add_messages_to_request(request)
+
+        response = bulk_import_view(request)
+        self.assertEqual(response.status_code, 302)
+
+        # All quick games should have global notes
+        for game_name in ["Quick Game 1", "Quick Game 2", "Quick Game 3"]:
+            game = Game.objects.get(name=game_name)
+            self.assertEqual(game.notes, "Notes for quick games")
+
+    def test_bulk_import_empty_notes_fields(self):
+        """Test that empty notes fields don't cause issues"""
+        request = self.factory.post(
+            "/admin/games/game/bulk_import/",
+            {
+                "vendor": self.vendor.id,
+                "bundle_date": "2024-01-15",
+                "bundle_price": "10.00",
+                "global_platform": self.platform_steam.id,
+                "global_notes": "",  # Empty global notes
+                "quick_games": "Quick Game",
+                "form-TOTAL_FORMS": "1",
+                "form-INITIAL_FORMS": "0",
+                "form-MIN_NUM_FORMS": "0",
+                "form-MAX_NUM_FORMS": "1000",
+                "form-0-game_name": "Detailed Game",
+                "form-0-platform": self.platform_steam.id,
+                "form-0-notes": "",  # Empty individual notes
+            },
+        )
+        request.user = self.user
+        add_messages_to_request(request)
+
+        response = bulk_import_view(request)
+        self.assertEqual(response.status_code, 302)
+
+        # Both games should have no notes (None or empty string)
+        quick_game = Game.objects.get(name="Quick Game")
+        detailed_game = Game.objects.get(name="Detailed Game")
+
+        # Should be None or empty string, both are acceptable
+        self.assertIn(quick_game.notes, [None, ""])
+        self.assertIn(detailed_game.notes, [None, ""])
+
+    def test_bulk_import_form_includes_global_notes_field(self):
+        """Test that BulkGameImportForm includes global_notes field"""
+        form = BulkGameImportForm()
+        self.assertIn("global_notes", form.fields)
+        self.assertFalse(form.fields["global_notes"].required)
+        self.assertEqual(
+            form.fields["global_notes"].widget.__class__.__name__, "Textarea"
+        )
+
+    def test_game_import_form_includes_notes_field(self):
+        """Test that GameImportForm includes notes field"""
+        from games.forms import GameImportForm
+
+        form = GameImportForm()
+        self.assertIn("notes", form.fields)
+        self.assertFalse(form.fields["notes"].required)
+        self.assertEqual(form.fields["notes"].widget.__class__.__name__, "Textarea")
+
+    def test_notes_fields_are_optional(self):
+        """Test that both global and individual notes fields are optional"""
+        # Test form validation without notes
+        form_data = {
+            "vendor": self.vendor.id,
+            "bundle_date": "2024-01-15",
+            "bundle_price": "10.00",
+            "global_platform": self.platform_steam.id,
+            # No global_notes provided
+        }
+        form = BulkGameImportForm(form_data)
+        self.assertTrue(form.is_valid())
+
+        # Test individual game form validation without notes
+        from games.forms import GameImportForm
+
+        game_form_data = {
+            "game_name": "Test Game",
+            "platform": self.platform_steam.id,
+            "play_priority": 5,
+            # No notes provided
+        }
+        game_form = GameImportForm(game_form_data)
+        self.assertTrue(game_form.is_valid())

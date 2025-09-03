@@ -46,6 +46,14 @@ class BulkGameImportForm(forms.Form):
         help_text="Quick input: Enter comma-separated game names. Will use Default Platform above.",
     )
 
+    global_notes = forms.CharField(
+        required=False,
+        widget=forms.Textarea(
+            attrs={"rows": 3, "placeholder": "Optional notes to apply to all games"}
+        ),
+        help_text="Optional: Notes that will be applied to all games unless overridden by individual notes.",
+    )
+
     def clean(self):
         cleaned_data = super().clean()
         quick_games = cleaned_data.get("quick_games")
@@ -91,6 +99,14 @@ class GameImportForm(forms.Form):
         max_value=10,
         widget=forms.NumberInput(attrs={"min": 1, "max": 10, "placeholder": "1-10"}),
         help_text="Play priority (1-10, optional)",
+    )
+
+    notes = forms.CharField(
+        required=False,
+        widget=forms.Textarea(
+            attrs={"rows": 2, "placeholder": "Optional notes for this specific game"}
+        ),
+        help_text="Optional: Notes for this game (overrides global notes if provided)",
     )
 
     def is_empty(self):
