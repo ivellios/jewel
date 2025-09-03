@@ -1,11 +1,13 @@
+from datetime import date, timedelta
 from decimal import Decimal
 
 from django.contrib import admin, messages
-from django.db import transaction
+from django.db import models, transaction
 from django.db.models import Count, Q
 from django.http import HttpResponseRedirect
 from django.shortcuts import render
 from django.urls import path, reverse
+from django.utils.formats import localize
 
 from games.forms import BulkGameImportForm, GameImportFormSet
 from games.models import Game, GameOnPlatform, Genre, Platform, Vendor
@@ -46,9 +48,58 @@ class GameStatusFilter(admin.SimpleListFilter):
         return queryset
 
 
+class LatestAddedFilter(admin.SimpleListFilter):
+    title = "latest added date"
+    parameter_name = "latest_added_filter"
+
+    def lookups(self, request, model_admin):
+        return (
+            ("today", "Today"),
+            ("week", "Past 7 days"),
+            ("month", "Past 30 days"),
+            ("never", "Never added"),
+        )
+
+    def queryset(self, request, queryset):
+        today = date.today()
+
+        if self.value() == "today":
+            return queryset.filter(latest_added=today)
+        elif self.value() == "week":
+            return queryset.filter(latest_added__gte=today - timedelta(days=7))
+        elif self.value() == "month":
+            return queryset.filter(latest_added__gte=today - timedelta(days=30))
+        elif self.value() == "never":
+            return queryset.filter(latest_added__isnull=True)
+        return queryset
+
+
+class VendorFilter(admin.SimpleListFilter):
+    title = "vendor"
+    parameter_name = "vendor_filter"
+
+    def lookups(self, request, model_admin):
+        # Get vendors that have active GameOnPlatform relationships
+        vendors = (
+            Vendor.objects.filter(gameonplatform__deleted=False)
+            .distinct()
+            .order_by("name")
+        )
+        return [(vendor.id, vendor.name) for vendor in vendors]
+
+    def queryset(self, request, queryset):
+        if self.value():
+            return queryset.filter(
+                platforms_meta_data__vendor_id=self.value(),
+                platforms_meta_data__deleted=False,
+            ).distinct()
+        return queryset
+
+
 class GameAdmin(admin.ModelAdmin):
     list_display = [
         "name",
+        "active_platforms",
         "play_priority",
         "played",
         "controller_support",
@@ -56,11 +107,14 @@ class GameAdmin(admin.ModelAdmin):
         "party_fit",
         "review",
         "notes",
-        "active_platforms",
-        "is_orphaned",
+        "total_price_paid",
+        "latest_added_date",
+        "vendors_list",
     ]
     list_filter = [
         GameStatusFilter,
+        LatestAddedFilter,
+        VendorFilter,
         "play_priority",
         "played",
         "controller_support",
@@ -79,7 +133,9 @@ class GameAdmin(admin.ModelAdmin):
         return Game.objects.all_with_orphaned().annotate(
             active_platform_count=Count(
                 "platforms_meta_data", filter=Q(platforms_meta_data__deleted=False)
-            )
+            ),
+            latest_added=models.Max("platforms_meta_data__added"),
+            total_price=models.Sum("platforms_meta_data__price"),
         )
 
     def active_platforms(self, obj):
@@ -90,6 +146,27 @@ class GameAdmin(admin.ModelAdmin):
         return ", ".join(platform_names) if platform_names else "None"
 
     active_platforms.short_description = "Active Platforms"
+
+    def vendors_list(self, obj):
+        vendors = obj.platforms_meta_data.filter(deleted=False).select_related("vendor")
+        vendor_names = {gop.vendor.name for gop in vendors if gop.vendor}
+        return ", ".join(sorted(vendor_names)) if vendor_names else "None"
+
+    vendors_list.short_description = "Vendors"
+
+    def total_price_paid(self, obj):
+        if obj.total_price is not None:
+            return localize(obj.total_price)
+        return localize(0)
+
+    total_price_paid.short_description = "Total Paid"
+    total_price_paid.admin_order_field = "total_price"
+
+    def latest_added_date(self, obj):
+        return obj.latest_added if obj.latest_added else "Never"
+
+    latest_added_date.short_description = "Latest Added"
+    latest_added_date.admin_order_field = "latest_added"
 
     def is_orphaned(self, obj):
         return obj.active_platform_count == 0

@@ -16,13 +16,16 @@ services:
       retries: 5
 
   web:
+#    image: ghcr.io/ivellios/jewel:latest
     build:
       dockerfile: ./docker/dev.Dockerfile
       context: .
     ports:
       - "8000:8000"
     environment:
-      - DATABASE_URL=postgresql://jewel:jewel123@db:5432/jewel
+      - JEWEL_DATABASE_URL=postgresql://jewel:jewel123@db:5432/jewel
+      - JEWEL_TIME_ZONE=Europe/Warsaw
+      - JEWEL_LANGUAGE_CODE=pl
       - DEBUG=1
       - API_TOKEN=your-secret-api-token-here
     depends_on:
