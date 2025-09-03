@@ -113,33 +113,38 @@ def process_bulk_import(request, form, formset):
             )
 
     # Check for duplicates
-    new_games = []
+    new_games_on_platforms = []
     for game_data in games_to_import:
-        if Game.objects.filter(name__iexact=game_data["name"]).exists():
+        if GameOnPlatform.objects.filter(
+            game__name__iexact=game_data["name"], platform_id=game_data["platform"]
+        ).exists():
             duplicates.append(game_data["name"])
         else:
-            new_games.append(game_data)
+            new_games_on_platforms.append(game_data)
 
-    if not new_games:
+    if not new_games_on_platforms:
         messages.warning(request, "No new games to import - all games already exist.")
         return HttpResponseRedirect(reverse("admin:games_game_changelist"))
 
     # Calculate price per game (excluding duplicates)
-    if bundle_price == 0 or len(new_games) == 0:
+    if bundle_price == 0 or len(new_games_on_platforms) == 0:
         price_per_game = Decimal("0.00")
     else:
-        price_per_game = bundle_price / len(new_games)
+        price_per_game = bundle_price / len(new_games_on_platforms)
         price_per_game = price_per_game.quantize(Decimal("0.01"))
 
     # Create games and platform relationships
     created_games = []
-    for game_data in new_games:
+    for game_data in new_games_on_platforms:
         # Create game
-        game = Game.objects.create(
-            name=game_data["name"],
-            play_priority=game_data["play_priority"],
-            notes=game_data["notes"],
-        )
+        try:
+            game = Game.objects.get(name__iexact=game_data["name"])
+        except Game.DoesNotExist:
+            game = Game.objects.create(
+                name=game_data["name"],
+                play_priority=game_data["play_priority"],
+                notes=game_data["notes"],
+            )
 
         # Create platform relationship
         GameOnPlatform.objects.create(
