@@ -98,7 +98,7 @@ class BulkGameImportAdminTestCase(TestCase):
     def test_bulk_import_detects_duplicates(self):
         """Test that duplicate games are detected and excluded"""
         # Create existing game
-        GameFactory(name="Existing Game")
+        first_game = GameFactory(name="Existing Game")
 
         request = self.factory.post(
             "/admin/games/game/bulk_import/",
@@ -111,7 +111,7 @@ class BulkGameImportAdminTestCase(TestCase):
                 "form-MIN_NUM_FORMS": "0",
                 "form-MAX_NUM_FORMS": "1000",
                 "form-0-game_name": "Existing Game",  # Duplicate
-                "form-0-platform": self.platform_steam.id,
+                "form-0-platform": first_game.platforms.first().id,
                 "form-1-game_name": "New Game",
                 "form-1-platform": self.platform_epic.id,
             },
@@ -335,8 +335,8 @@ class BulkGameImportAdminTestCase(TestCase):
     def test_bulk_import_duplicate_exclusion_from_price_split(self):
         """Test that duplicates are properly excluded from price calculations"""
         # Create existing games
-        GameFactory(name="Existing Game 1")
-        GameFactory(name="Existing Game 2")
+        g1 = GameFactory(name="Existing Game 1")
+        g2 = GameFactory(name="Existing Game 2")
 
         request = self.factory.post(
             "/admin/games/game/bulk_import/",
@@ -348,10 +348,10 @@ class BulkGameImportAdminTestCase(TestCase):
                 "form-INITIAL_FORMS": "0",
                 "form-MIN_NUM_FORMS": "0",
                 "form-MAX_NUM_FORMS": "1000",
-                "form-0-game_name": "Existing Game 1",  # Duplicate
-                "form-0-platform": self.platform_steam.id,
-                "form-1-game_name": "Existing Game 2",  # Duplicate
-                "form-1-platform": self.platform_steam.id,
+                "form-0-game_name": g1.name,
+                "form-0-platform": g1.platforms.first().id,  # Duplicate
+                "form-1-game_name": g2.name,
+                "form-1-platform": g2.platforms.first().id,  # Duplicate
                 "form-2-game_name": "New Game 1",
                 "form-2-platform": self.platform_steam.id,
                 "form-3-game_name": "New Game 2",
@@ -617,13 +617,13 @@ class BulkImportViewTestCase(TestCase):
         """Test process_bulk_import properly handles duplicate games"""
 
         # Create existing game
-        GameFactory(name="Existing Game")
+        g1 = GameFactory(name="Existing Game")
 
         form_data = {
             "vendor": self.vendor.id,
             "bundle_date": "2024-01-15",
             "bundle_price": "20.00",
-            "global_platform": self.platform_steam.id,
+            "global_platform": g1.platforms.first().id,
             "quick_games": "Existing Game, New Game",
         }
 
@@ -765,14 +765,19 @@ class BulkImportViewTestCase(TestCase):
         """Test process_bulk_import shows warning when all games are duplicates"""
 
         # Create existing games
-        GameFactory(name="Game 1")
-        GameFactory(name="Game 2")
+        g1 = GameFactory(name="Game 1", platforms=False)
+        g2 = GameFactory(name="Game 2", platforms=False)
+
+        p = PlatformFactory()
+
+        g1.platforms.add(p)
+        g2.platforms.add(p)
 
         form_data = {
             "vendor": self.vendor.id,
             "bundle_date": "2024-01-15",
             "bundle_price": "30.00",
-            "global_platform": self.platform_steam.id,
+            "global_platform": p.id,
             "quick_games": "Game 1, Game 2",  # All duplicates
         }
 
