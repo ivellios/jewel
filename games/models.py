@@ -4,6 +4,8 @@ from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.utils import timezone
 
+from games.signals import platform_added_for_game
+
 
 class NamedModel(models.Model):
     name = models.CharField(max_length=100)
@@ -133,6 +135,10 @@ class GameOnPlatform(models.Model):
 
     def __str__(self):
         return f"{self.game.name} on {self.platform.name}"
+
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        platform_added_for_game.send(sender=self.__class__, instance=self)
 
     def soft_delete(self):
         """Mark this game-platform relationship as deleted"""
