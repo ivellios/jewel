@@ -19,7 +19,7 @@ class BulkGameImportForm(forms.Form):
     bundle_date = forms.DateField(
         required=True,
         initial=date.today,
-        widget=forms.DateInput(attrs={"type": "date"}),
+        widget=forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"),
         help_text="Date when the bundle was purchased",
     )
 
