@@ -6,4 +6,6 @@ class SteamConfig(AppConfig):
     name = "steam"
 
     def ready(self):
+        from . import signals_processors  # noqa: F401
+
         pass
