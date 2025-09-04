@@ -71,6 +71,19 @@ class LatestAddedFilter(admin.SimpleListFilter):
         return queryset
 
 
+class WithDateFilter(admin.SimpleListFilter):
+    title = "With adding date only"
+    parameter_name = "with_date"
+
+    def lookups(self, request, model_admin):
+        return (("with_date", "With adding date only"),)
+
+    def queryset(self, request, queryset):
+        if self.value() == "with_date":
+            return queryset.filter(platforms_meta_data__added__isnull=False).distinct()
+        return queryset
+
+
 class VendorFilter(admin.SimpleListFilter):
     title = "vendor"
     parameter_name = "vendor_filter"
@@ -111,6 +124,7 @@ class GameAdmin(admin.ModelAdmin):
     list_filter = [
         GameStatusFilter,
         LatestAddedFilter,
+        WithDateFilter,
         VendorFilter,
         "play_priority",
         "played",
@@ -120,6 +134,9 @@ class GameAdmin(admin.ModelAdmin):
         "platforms",
         "genres",
     ]
+    # ordering = [
+    #     "-latest_added_date",
+    # ]
     search_fields = [
         "name",
     ]
@@ -127,12 +144,16 @@ class GameAdmin(admin.ModelAdmin):
 
     def get_queryset(self, request):
         # Use all_with_orphaned to show both active and orphaned games
-        return Game.objects.all_with_orphaned().annotate(
-            active_platform_count=Count(
-                "platforms_meta_data", filter=Q(platforms_meta_data__deleted=False)
-            ),
-            latest_added=models.Max("platforms_meta_data__added"),
-            total_price=models.Sum("platforms_meta_data__price"),
+        return (
+            Game.objects.all_with_orphaned()
+            .annotate(
+                active_platform_count=Count(
+                    "platforms_meta_data", filter=Q(platforms_meta_data__deleted=False)
+                ),
+                latest_added=models.Max("platforms_meta_data__added"),
+                total_price=models.Sum("platforms_meta_data__price"),
+            )
+            .order_by("-latest_added")
         )
 
     def active_platforms(self, obj):
