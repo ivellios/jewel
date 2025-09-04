@@ -1,7 +1,9 @@
 from datetime import date, timedelta
 from decimal import Decimal
+from unittest.mock import patch
 
 from django.contrib.admin.sites import AdminSite
+from django.contrib.messages.storage.fallback import FallbackStorage
 from django.db import models
 from django.test import RequestFactory, TestCase
 
@@ -13,6 +15,13 @@ from games.api.__tests__.factories import (
     VendorFactory,
 )
 from games.models import Game, GameOnPlatform
+
+
+def add_messages_to_request(request):
+    """Add messages framework to request for testing"""
+    request.session = {}
+    messages = FallbackStorage(request)
+    request._messages = messages
 
 
 class GameAdminDisplayTestCase(TestCase):
@@ -247,3 +256,329 @@ class AdminFilterTestCase(TestCase):
         # The exact filtering logic is complex with annotations,
         # so we just verify it works without throwing errors
         self.assertIsInstance(game_names, list)
+
+
+class GameAdminActionTestCase(TestCase):
+    """Test admin action methods: match_steam_identifier"""
+
+    def setUp(self):
+        self.factory = RequestFactory()
+        self.site = AdminSite()
+        self.admin = GameAdmin(Game, self.site)
+        self.user = UserFactory()
+        self.steam_platform = PlatformFactory(name="Steam")
+        self.epic_platform = PlatformFactory(name="Epic Games")
+        self.steam_vendor = VendorFactory(name="Steam")
+
+    @patch("games.admin.set_steam_game_appid")
+    def test_match_steam_identifier_action_updates_steam_games(
+        self, mock_set_steam_appid
+    ):
+        """Test match_steam_identifier action updates Steam games without identifiers"""
+        mock_set_steam_appid.return_value = (
+            True  # Simulate successful identifier setting
+        )
+
+        # Create Steam game without identifier
+        game1 = GameFactory(name="Steam Game 1")
+        game1.platforms.add(self.steam_platform)  # Add to many-to-many
+        GameOnPlatform.objects.create(
+            game=game1,
+            platform=self.steam_platform,
+            vendor=self.steam_vendor,
+            identifier="",  # No identifier
+            deleted=False,
+        )
+
+        # Create another Steam game without identifier
+        game2 = GameFactory(name="Steam Game 2")
+        game2.platforms.add(self.steam_platform)  # Add to many-to-many
+        GameOnPlatform.objects.create(
+            game=game2,
+            platform=self.steam_platform,
+            vendor=self.steam_vendor,
+            identifier="   ",  # Whitespace identifier
+            deleted=False,
+        )
+
+        request = self.factory.post("/admin/games/game/")
+        request.user = self.user
+        add_messages_to_request(request)
+
+        queryset = Game.objects.filter(id__in=[game1.id, game2.id])
+
+        self.admin.match_steam_identifier(request, queryset)
+
+        # Verify set_steam_game_appid was called for both games
+        self.assertEqual(mock_set_steam_appid.call_count, 2)
+
+        # Verify it was called with GameOnPlatform instances
+        for call_args in mock_set_steam_appid.call_args_list:
+            gop = call_args[0][0]  # First argument of the call
+            self.assertIsInstance(gop, GameOnPlatform)
+            self.assertEqual(gop.platform.name, "Steam")
+            self.assertIn(gop.game.name, ["Steam Game 1", "Steam Game 2"])
+
+    @patch("games.admin.set_steam_game_appid")
+    def test_match_steam_identifier_skips_non_steam_games(self, mock_set_steam_appid):
+        """Test match_steam_identifier action skips non-Steam games"""
+        # Create Epic game
+        epic_game = GameFactory(name="Epic Game")
+        GameOnPlatform.objects.create(
+            game=epic_game,
+            platform=self.epic_platform,
+            vendor=VendorFactory(name="Epic Games"),
+            identifier="",
+            deleted=False,
+        )
+
+        request = self.factory.post("/admin/games/game/")
+        request.user = self.user
+        add_messages_to_request(request)
+
+        queryset = Game.objects.filter(id=epic_game.id)
+        self.admin.match_steam_identifier(request, queryset)
+
+        # Verify set_steam_game_appid was NOT called
+        mock_set_steam_appid.assert_not_called()
+
+    @patch("games.admin.set_steam_game_appid")
+    def test_match_steam_identifier_skips_existing_identifiers(
+        self, mock_set_steam_appid
+    ):
+        """Test match_steam_identifier action skips games with existing identifiers"""
+        # Create Steam game WITH identifier
+        steam_game = GameFactory(name="Steam Game With ID")
+        GameOnPlatform.objects.create(
+            game=steam_game,
+            platform=self.steam_platform,
+            vendor=self.steam_vendor,
+            identifier="123456",  # Already has identifier
+            deleted=False,
+        )
+
+        request = self.factory.post("/admin/games/game/")
+        request.user = self.user
+        add_messages_to_request(request)
+
+        queryset = Game.objects.filter(id=steam_game.id)
+        self.admin.match_steam_identifier(request, queryset)
+
+        # Verify set_steam_game_appid was NOT called
+        mock_set_steam_appid.assert_not_called()
+
+    @patch("games.admin.set_steam_game_appid")
+    def test_match_steam_identifier_skips_deleted_platforms(self, mock_set_steam_appid):
+        """Test match_steam_identifier action skips soft-deleted platform relationships"""
+        # Create Steam game with soft-deleted platform relationship
+        steam_game = GameFactory(name="Deleted Steam Game")
+        GameOnPlatform.objects.create(
+            game=steam_game,
+            platform=self.steam_platform,
+            vendor=self.steam_vendor,
+            identifier="",
+            deleted=True,  # Soft-deleted
+        )
+
+        request = self.factory.post("/admin/games/game/")
+        request.user = self.user
+        add_messages_to_request(request)
+
+        queryset = Game.objects.filter(id=steam_game.id)
+        self.admin.match_steam_identifier(request, queryset)
+
+        # Verify set_steam_game_appid was NOT called
+        mock_set_steam_appid.assert_not_called()
+
+    @patch("games.admin.set_steam_game_appid")
+    def test_match_steam_identifier_handles_mixed_results(self, mock_set_steam_appid):
+        """Test match_steam_identifier action handles mixed success/failure results"""
+        # Mock some successes and some failures
+        mock_set_steam_appid.side_effect = [
+            True,
+            False,
+            True,
+        ]  # success, failure, success
+
+        # Create 3 Steam games without identifiers
+        games = []
+        for i in range(3):
+            game = GameFactory(name=f"Steam Game {i + 1}")
+            game.platforms.add(self.steam_platform)  # Add to many-to-many
+            GameOnPlatform.objects.create(
+                game=game,
+                platform=self.steam_platform,
+                vendor=self.steam_vendor,
+                identifier="",
+                deleted=False,
+            )
+            games.append(game)
+
+        request = self.factory.post("/admin/games/game/")
+        request.user = self.user
+        add_messages_to_request(request)
+
+        queryset = Game.objects.filter(id__in=[g.id for g in games])
+        self.admin.match_steam_identifier(request, queryset)
+
+        # Verify set_steam_game_appid was called 3 times
+        self.assertEqual(mock_set_steam_appid.call_count, 3)
+
+    @patch("games.admin.set_steam_game_appid")
+    def test_match_steam_identifier_case_insensitive_platform_matching(
+        self, mock_set_steam_appid
+    ):
+        """Test match_steam_identifier works with different case variations of Steam platform"""
+        mock_set_steam_appid.return_value = True
+
+        # Create platform with different case
+        steam_lower = PlatformFactory(name="steam")
+        steam_game = GameFactory(name="Lowercase Steam Game")
+        steam_game.platforms.add(steam_lower)  # Add to many-to-many
+        GameOnPlatform.objects.create(
+            game=steam_game,
+            platform=steam_lower,
+            vendor=self.steam_vendor,
+            identifier="",
+            deleted=False,
+        )
+
+        request = self.factory.post("/admin/games/game/")
+        request.user = self.user
+        add_messages_to_request(request)
+
+        queryset = Game.objects.filter(id=steam_game.id)
+        self.admin.match_steam_identifier(request, queryset)
+
+        # Verify set_steam_game_appid was called once
+        self.assertEqual(mock_set_steam_appid.call_count, 1)
+
+        # Verify it was called with the correct GameOnPlatform instance
+        call_args = mock_set_steam_appid.call_args_list[0]
+        gop_called = call_args[0][0]  # First argument of the call
+        self.assertIsInstance(gop_called, GameOnPlatform)
+        self.assertEqual(gop_called.platform.name, "steam")
+        self.assertEqual(gop_called.game.name, "Lowercase Steam Game")
+
+
+class GameAdminDisplayMethodTestCase(TestCase):
+    """Test admin display methods: game_url"""
+
+    def setUp(self):
+        self.factory = RequestFactory()
+        self.site = AdminSite()
+        self.admin = GameAdmin(Game, self.site)
+        self.steam_platform = PlatformFactory(name="Steam")
+        self.epic_platform = PlatformFactory(name="Epic Games")
+        self.steam_vendor = VendorFactory(name="Steam")
+
+    def test_game_url_displays_steam_link_for_steam_games(self):
+        """Test game_url displays Steam store link for Steam games with identifier"""
+        game = GameFactory(name="Steam Game")
+        GameOnPlatform.objects.create(
+            game=game,
+            platform=self.steam_platform,
+            vendor=self.steam_vendor,
+            identifier="123456",
+            deleted=False,
+        )
+
+        result = self.admin.game_url(game)
+
+        # Should contain Steam link with the identifier
+        self.assertIn("https://store.steampowered.com/app/123456/", result)
+        self.assertIn('target="_blank"', result)
+        self.assertIn("Steam Link", result)
+
+    def test_game_url_displays_dash_for_non_steam_games(self):
+        """Test game_url displays '-' for non-Steam games"""
+        game = GameFactory(name="Epic Game")
+        GameOnPlatform.objects.create(
+            game=game,
+            platform=self.epic_platform,
+            vendor=VendorFactory(name="Epic Games"),
+            identifier="epic123",
+            deleted=False,
+        )
+
+        result = self.admin.game_url(game)
+        self.assertEqual(result, "-")
+
+    def test_game_url_displays_dash_for_steam_games_without_identifier(self):
+        """Test game_url displays '-' for Steam games without identifier"""
+        game = GameFactory(name="Steam Game No ID")
+        GameOnPlatform.objects.create(
+            game=game,
+            platform=self.steam_platform,
+            vendor=self.steam_vendor,
+            identifier="",  # No identifier
+            deleted=False,
+        )
+
+        result = self.admin.game_url(game)
+        self.assertEqual(result, "-")
+
+    def test_game_url_displays_dash_for_steam_games_with_deleted_platforms(self):
+        """Test game_url displays '-' for Steam games with soft-deleted platform relationships"""
+        game = GameFactory(name="Deleted Steam Game")
+        GameOnPlatform.objects.create(
+            game=game,
+            platform=self.steam_platform,
+            vendor=self.steam_vendor,
+            identifier="123456",
+            deleted=True,  # Soft-deleted
+        )
+
+        result = self.admin.game_url(game)
+        self.assertEqual(result, "-")
+
+    def test_game_url_case_insensitive_steam_platform_matching(self):
+        """Test game_url works with different case variations of Steam platform name"""
+        steam_lower = PlatformFactory(name="steam")
+        game = GameFactory(name="Lowercase Steam Game")
+        GameOnPlatform.objects.create(
+            game=game,
+            platform=steam_lower,
+            vendor=self.steam_vendor,
+            identifier="987654",
+            deleted=False,
+        )
+
+        result = self.admin.game_url(game)
+
+        # Should contain Steam link
+        self.assertIn("https://store.steampowered.com/app/987654/", result)
+        self.assertIn("Steam Link", result)
+
+    def test_game_url_uses_first_active_steam_platform(self):
+        """Test game_url uses first active Steam platform if multiple exist"""
+        game = GameFactory(name="Multi-Platform Steam Game")
+
+        # Create first Steam platform relationship
+        GameOnPlatform.objects.create(
+            game=game,
+            platform=self.steam_platform,
+            vendor=self.steam_vendor,
+            identifier="111111",
+            deleted=False,
+        )
+
+        # Create second Steam platform relationship (different vendor)
+        steam_vendor2 = VendorFactory(name="Steam Alternative")
+        GameOnPlatform.objects.create(
+            game=game,
+            platform=self.steam_platform,
+            vendor=steam_vendor2,
+            identifier="222222",
+            deleted=False,
+        )
+
+        result = self.admin.game_url(game)
+
+        # Should use first active Steam platform relationship found
+        # Since we can't guarantee ordering, just verify it's one of the valid Steam links
+        self.assertTrue(
+            "https://store.steampowered.com/app/111111/" in result
+            or "https://store.steampowered.com/app/222222/" in result
+        )
+        self.assertIn("Steam Link", result)
