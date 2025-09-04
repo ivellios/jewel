@@ -5,9 +5,11 @@ from django.db import models
 from django.db.models import Count, Q
 from django.urls import path, reverse
 from django.utils.formats import localize
+from django.utils.safestring import mark_safe
 
 from games.admin_views.bulk_import import bulk_import_view
 from games.models import Game, GameOnPlatform, Genre, Platform, Vendor
+from steam.utils import set_steam_game_appid
 
 # Register your models here.
 
@@ -109,6 +111,7 @@ class VendorFilter(admin.SimpleListFilter):
 class GameAdmin(admin.ModelAdmin):
     list_display = [
         "name",
+        "game_url",
         "active_platforms",
         "play_priority",
         "played",
@@ -134,9 +137,6 @@ class GameAdmin(admin.ModelAdmin):
         "platforms",
         "genres",
     ]
-    # ordering = [
-    #     "-latest_added_date",
-    # ]
     search_fields = [
         "name",
     ]
@@ -172,6 +172,20 @@ class GameAdmin(admin.ModelAdmin):
 
     vendors_list.short_description = "Vendors"
 
+    def game_url(self, obj: Game):
+        if obj.platforms.filter(name__iexact="Steam").exists():
+            steam_gop = obj.platforms_meta_data.filter(
+                platform__name__iexact="Steam", deleted=False
+            ).first()
+            if steam_gop and steam_gop.identifier:
+                return mark_safe(
+                    f'<a href="https://store.steampowered.com/app/{steam_gop.identifier}/" target="_blank">Steam Link</a>'
+                )
+        return "-"
+
+    game_url.allow_tags = True
+    game_url.short_description = "Game URL"
+
     def total_price_paid(self, obj):
         if obj.total_price is not None:
             return localize(obj.total_price)
@@ -193,7 +207,27 @@ class GameAdmin(admin.ModelAdmin):
     is_orphaned.short_description = "Orphaned"
     is_orphaned.admin_order_field = "active_platform_count"
 
-    actions = ["restore_all_platforms", "make_orphaned"]
+    actions = ["match_steam_identifier", "restore_all_platforms", "make_orphaned"]
+
+    def match_steam_identifier(self, request, queryset):
+        count = 0
+        for game in queryset:
+            if not game.platforms.filter(name__iexact="Steam").exists():
+                continue
+            steam_gop = game.platforms_meta_data.filter(
+                platform__name__iexact="Steam", deleted=False
+            ).first()
+            if (
+                steam_gop
+                and (not steam_gop.identifier or steam_gop.identifier.strip() == "")
+                and set_steam_game_appid(steam_gop)
+            ):
+                count += 1
+        self.message_user(request, f"Updated {count} Steam game identifiers.")
+
+    match_steam_identifier.short_description = (
+        "Match Steam identifiers for selected games"
+    )
 
     def restore_all_platforms(self, request, queryset):
         count = 0
