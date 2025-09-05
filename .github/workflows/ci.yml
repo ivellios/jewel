@@ -50,5 +50,5 @@ jobs:
     - name: Run tests
       env:
         DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_jewel
-        API_TOKEN: test-token-for-ci
+        JEWEL_API_TOKEN: test-token-for-ci
       run: uv run pytest -v
