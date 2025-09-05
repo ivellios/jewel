@@ -26,10 +26,7 @@ SECRET_KEY = "&q_ud^+s+@t6intll5j&+yaukniv75gmemn1gah2xfr^c$$4"
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv("JEWEL_DEBUG", "True") == "True"
 
-ALLOWED_HOSTS = [
-    "localhost",
-]
-
+ALLOWED_HOSTS = os.getenv("JEWEL_ALLOWED_HOSTS", "localhost").split(",")
 
 # Application definition
 
