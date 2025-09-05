@@ -24,7 +24,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = "&q_ud^+s+@t6intll5j&+yaukniv75gmemn1gah2xfr^c$$4"
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.getenv("JEWEL_DEBUG", "True") == "True"
 
 ALLOWED_HOSTS = [
     "localhost",
@@ -136,7 +136,7 @@ STATIC_URL = "/static/"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # API Configuration
-API_TOKEN = os.environ.get("API_TOKEN")
+API_TOKEN = os.environ.get("JEWEL_API_TOKEN")
 
 # Django REST Framework
 REST_FRAMEWORK = {
