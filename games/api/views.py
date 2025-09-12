@@ -1,6 +1,5 @@
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import generics, status
-from rest_framework.filters import SearchFilter
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
@@ -32,9 +31,8 @@ class VendorListAPIView(generics.ListAPIView):
 class GameListCreateAPIView(generics.ListCreateAPIView):
     queryset = Game.objects.all()
     permission_classes = [IsAuthenticated]
-    filter_backends = [DjangoFilterBackend, SearchFilter]
+    filter_backends = [DjangoFilterBackend]
     filterset_class = GameFilterSet
-    search_fields = ["name"]
 
     def get_serializer_class(self):
         if self.request.method == "POST":
