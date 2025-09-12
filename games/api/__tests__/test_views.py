@@ -101,6 +101,89 @@ class GameListCreateAPIViewTestCase(GameAPITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 0)
 
+    def test_game_list_search_multiple_games_basic(self):
+        """Test search with comma-separated names"""
+        url = reverse("game-list-create-api")
+        response = self.client.get(
+            url, {"search": "witcher,portal"}, **self._get_auth_headers()
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 2)
+
+        game_names = [game["name"] for game in response.data]
+        self.assertIn("The Witcher 3", game_names)
+        self.assertIn("Portal 2", game_names)
+
+    def test_game_list_search_multiple_games_case_insensitive(self):
+        """Test search with mixed case comma-separated names"""
+        url = reverse("game-list-create-api")
+        response = self.client.get(
+            url, {"search": "WITCHER,cyberpunk"}, **self._get_auth_headers()
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 2)
+
+        game_names = [game["name"] for game in response.data]
+        self.assertIn("The Witcher 3", game_names)
+        self.assertIn("Cyberpunk 2077", game_names)
+
+    def test_game_list_search_multiple_games_partial_matching(self):
+        """Test search with partial name matching"""
+        url = reverse("game-list-create-api")
+        response = self.client.get(
+            url, {"search": "cyber,port"}, **self._get_auth_headers()
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 2)
+
+        game_names = [game["name"] for game in response.data]
+        self.assertIn("Cyberpunk 2077", game_names)
+        self.assertIn("Portal 2", game_names)
+
+    def test_game_list_search_multiple_games_with_whitespace(self):
+        """Test search handles whitespace properly in comma-separated names"""
+        url = reverse("game-list-create-api")
+        response = self.client.get(
+            url, {"search": "  witcher  ,  cyberpunk  "}, **self._get_auth_headers()
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 2)
+
+        game_names = [game["name"] for game in response.data]
+        self.assertIn("The Witcher 3", game_names)
+        self.assertIn("Cyberpunk 2077", game_names)
+
+    def test_game_list_search_multiple_games_some_no_matches(self):
+        """Test search where some comma-separated names don't match"""
+        url = reverse("game-list-create-api")
+        response = self.client.get(
+            url, {"search": "witcher,nonexistent,portal"}, **self._get_auth_headers()
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 2)
+
+        game_names = [game["name"] for game in response.data]
+        self.assertIn("The Witcher 3", game_names)
+        self.assertIn("Portal 2", game_names)
+
+    def test_game_list_search_multiple_games_all_games(self):
+        """Test search that matches all games with comma-separated names"""
+        url = reverse("game-list-create-api")
+        response = self.client.get(
+            url, {"search": "witcher,cyberpunk,portal"}, **self._get_auth_headers()
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 3)
+
+    def test_game_list_search_multiple_games_no_results(self):
+        """Test search with comma-separated names that don't match anything"""
+        url = reverse("game-list-create-api")
+        response = self.client.get(
+            url, {"search": "nonexistent1,nonexistent2"}, **self._get_auth_headers()
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 0)
+
     def test_create_game_with_all_required_fields(self):
         url = reverse("game-list-create-api")
         data = {
