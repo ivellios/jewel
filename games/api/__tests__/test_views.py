@@ -101,6 +101,118 @@ class GameListCreateAPIViewTestCase(GameAPITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 0)
 
+    def test_game_list_multiple_search_basic(self):
+        """Test multiple game search with comma-separated names"""
+        url = reverse("game-list-create-api")
+        response = self.client.get(
+            url, {"games": "witcher,portal"}, **self._get_auth_headers()
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 2)
+
+        game_names = [game["name"] for game in response.data]
+        self.assertIn("The Witcher 3", game_names)
+        self.assertIn("Portal 2", game_names)
+
+    def test_game_list_multiple_search_case_insensitive(self):
+        """Test multiple game search with mixed case"""
+        url = reverse("game-list-create-api")
+        response = self.client.get(
+            url, {"games": "WITCHER,cyberpunk"}, **self._get_auth_headers()
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 2)
+
+        game_names = [game["name"] for game in response.data]
+        self.assertIn("The Witcher 3", game_names)
+        self.assertIn("Cyberpunk 2077", game_names)
+
+    def test_game_list_multiple_search_partial_matching(self):
+        """Test multiple game search with partial name matching"""
+        url = reverse("game-list-create-api")
+        response = self.client.get(
+            url, {"games": "cyber,port"}, **self._get_auth_headers()
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 2)
+
+        game_names = [game["name"] for game in response.data]
+        self.assertIn("Cyberpunk 2077", game_names)
+        self.assertIn("Portal 2", game_names)
+
+    def test_game_list_multiple_search_with_whitespace(self):
+        """Test multiple game search handles whitespace properly"""
+        url = reverse("game-list-create-api")
+        response = self.client.get(
+            url, {"games": "  witcher  ,  cyberpunk  "}, **self._get_auth_headers()
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 2)
+
+        game_names = [game["name"] for game in response.data]
+        self.assertIn("The Witcher 3", game_names)
+        self.assertIn("Cyberpunk 2077", game_names)
+
+    def test_game_list_multiple_search_some_no_matches(self):
+        """Test multiple game search where some names don't match"""
+        url = reverse("game-list-create-api")
+        response = self.client.get(
+            url, {"games": "witcher,nonexistent,portal"}, **self._get_auth_headers()
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 2)
+
+        game_names = [game["name"] for game in response.data]
+        self.assertIn("The Witcher 3", game_names)
+        self.assertIn("Portal 2", game_names)
+
+    def test_game_list_multiple_search_all_games(self):
+        """Test multiple game search that matches all games"""
+        url = reverse("game-list-create-api")
+        response = self.client.get(
+            url, {"games": "witcher,cyberpunk,portal"}, **self._get_auth_headers()
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 3)
+
+    def test_game_list_multiple_search_empty_string(self):
+        """Test multiple game search with empty string returns all games"""
+        url = reverse("game-list-create-api")
+        response = self.client.get(url, {"games": ""}, **self._get_auth_headers())
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 3)
+
+    def test_game_list_multiple_search_no_results(self):
+        """Test multiple game search with no matching names"""
+        url = reverse("game-list-create-api")
+        response = self.client.get(
+            url, {"games": "nonexistent1,nonexistent2"}, **self._get_auth_headers()
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 0)
+
+    def test_game_list_single_search_still_works(self):
+        """Test backward compatibility - single search parameter still works"""
+        url = reverse("game-list-create-api")
+        response = self.client.get(
+            url, {"search": "witcher"}, **self._get_auth_headers()
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["name"], "The Witcher 3")
+
+    def test_game_list_both_search_and_games_parameter(self):
+        """Test behavior when both search and games parameters are provided"""
+        url = reverse("game-list-create-api")
+        response = self.client.get(
+            url, {"search": "witcher", "games": "cyberpunk"}, **self._get_auth_headers()
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        # Should return games matching either condition
+        game_names = [game["name"] for game in response.data]
+        self.assertIn("The Witcher 3", game_names)
+        self.assertIn("Cyberpunk 2077", game_names)
+
     def test_create_game_with_all_required_fields(self):
         url = reverse("game-list-create-api")
         data = {
