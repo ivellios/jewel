@@ -115,7 +115,7 @@ class GameOnPlatform(models.Model):
     platform = models.ForeignKey(
         Platform, on_delete=models.CASCADE, related_name="games_meta_data"
     )
-    added = models.DateField(null=True, blank=True)
+    added = models.DateField(null=True, blank=True, auto_now_add=True)
     identifier = models.CharField(
         verbose_name="ID in the platform for generating URLs",
         max_length=255,
@@ -128,6 +128,7 @@ class GameOnPlatform(models.Model):
         max_digits=6,
         blank=True,
         null=True,
+        default=0.0,
     )
     vendor = models.ForeignKey(Vendor, on_delete=models.SET_NULL, null=True, blank=True)
     deleted = models.BooleanField(default=False, db_index=True)
