@@ -89,23 +89,20 @@ class GameAdminDisplayTestCase(TestCase):
         newer_date = date.today() - timedelta(days=5)
 
         # Add game to platform on different dates
-        gop1 = GameOnPlatform.objects.create(
+        GameOnPlatform.objects.create(
             game=game,
             platform=self.platform,
             vendor=self.vendor1,
+            added=older_date,
             deleted=False,
         )
-        # Set the date after creation to bypass auto_now_add
-        GameOnPlatform.objects.filter(pk=gop1.pk).update(added=older_date)
-
-        gop2 = GameOnPlatform.objects.create(
+        GameOnPlatform.objects.create(
             game=game,
             platform=self.platform,
             vendor=self.vendor2,
+            added=newer_date,
             deleted=False,
         )
-        # Set the date after creation to bypass auto_now_add
-        GameOnPlatform.objects.filter(pk=gop2.pk).update(added=newer_date)
 
         # Annotate as admin would
         game = (
@@ -123,16 +120,15 @@ class GameAdminDisplayTestCase(TestCase):
         game = GameFactory(name="Undated Game", platforms=False)
 
         # Create GameOnPlatform with added=None
-        gop = GameOnPlatform.objects.create(
+        GameOnPlatform.objects.create(
             game=game,
             platform=self.platform,
             vendor=self.vendor1,
+            added=None,
             deleted=False,
         )
-        # Set added to None after creation (bypasses auto_now_add)
-        GameOnPlatform.objects.filter(pk=gop.pk).update(added=None)
 
-        # Annotate as admin would - AFTER updating the added field
+        # Annotate as admin would
         game = (
             Game.objects.all_with_orphaned()
             .annotate(latest_added=models.Max("platforms_meta_data__added"))
