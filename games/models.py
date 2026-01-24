@@ -1,4 +1,5 @@
 import uuid
+from datetime import date
 
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
@@ -115,7 +116,7 @@ class GameOnPlatform(models.Model):
     platform = models.ForeignKey(
         Platform, on_delete=models.CASCADE, related_name="games_meta_data"
     )
-    added = models.DateField(null=True, blank=True, auto_now_add=True)
+    added = models.DateField(null=True, blank=True, default=date.today)
     identifier = models.CharField(
         verbose_name="ID in the platform for generating URLs",
         max_length=255,
