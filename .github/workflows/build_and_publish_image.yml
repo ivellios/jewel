@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - master
+      - main
 
 env:
   IMAGE_NAME: ghcr.io/${{ github.repository_owner }}/jewel
