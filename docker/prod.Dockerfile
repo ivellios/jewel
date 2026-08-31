@@ -27,4 +27,4 @@ ENTRYPOINT ["/app/docker/docker-entrypoint.sh"]
 # Expose port
 EXPOSE 8000
 
-CMD ["uv", "run", "uwsgi", "--http", "0.0.0.0:8000", "--module", "jewel.wsgi:application", "--master", "--processes", "4", "--threads", "2", "--static-map", "/static=/app/staticfiles", "--mime-file=/app/docker/uwsgi-mime.types"]
+CMD ["uv", "run", "uwsgi", "--http", "0.0.0.0:8000", "--module", "jewel.wsgi:application", "--master", "--processes", "4", "--threads", "2", "--buffer-size", "65535", "--static-map", "/static=/app/staticfiles", "--mime-file=/app/docker/uwsgi-mime.types"]
