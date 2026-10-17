@@ -87,3 +87,27 @@ docker compose exec web uv run manage.py match_steam_games
 ```shell
 uv run manage.py match_steam_games
 ```
+
+## Loading demo fixture (development data only)
+
+A pre-seeded demo fixture is provided for local development and testing.
+It contains 6 deterministic games across multiple platforms and vendors.
+
+```shell
+uv run manage.py loaddata demo_games
+```
+
+The fixture lives in `games/fixtures/demo_games.json` and covers:
+- 4 platforms (PC, PlayStation 5, Nintendo Switch, Xbox)
+- 5 vendors (Steam, GOG, Nintendo eShop, PlayStation Store, Microsoft Store)
+- 6 genres, 6 games with varied metadata
+
+**With Docker:**
+```shell
+docker compose exec web uv run manage.py loaddata demo_games
+```
+
+> [!IMPORTANT]
+> This data is for local development/demo use only. It creates the `admin`
+> superuser with password `password` and should be loaded into a disposable
+> development database.

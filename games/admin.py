@@ -1,4 +1,5 @@
 from datetime import date, timedelta
+from decimal import Decimal
 
 from django.contrib import admin
 from django.db import models
@@ -187,9 +188,10 @@ class GameAdmin(admin.ModelAdmin):
     game_url.short_description = "Game URL"
 
     def total_price_paid(self, obj):
-        if obj.total_price is not None:
-            return localize(obj.total_price)
-        return localize(0)
+        if obj.total_price is None or obj.total_price == 0:
+            return localize(0)
+        total = obj.total_price
+        return localize(total.quantize(Decimal("0.01")))
 
     total_price_paid.short_description = "Total Paid"
     total_price_paid.admin_order_field = "total_price"
