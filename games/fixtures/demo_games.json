@@ -1,0 +1,385 @@
+[
+  {
+    "model": "auth.user",
+    "pk": 1,
+    "fields": {
+      "password": "pbkdf2_sha256$1000000$GlGqvQ9TeMcYtW8daaR5yM$NiXtpDwDC20G+3y/4fyvdRf1aAmpbgOPbzcc6XXQHxA=",
+      "last_login": "2026-10-17T21:31:08.206Z",
+      "is_superuser": true,
+      "username": "admin",
+      "first_name": "",
+      "last_name": "",
+      "email": "",
+      "is_staff": true,
+      "is_active": true,
+      "date_joined": "2026-10-17T21:29:53.455Z",
+      "groups": [],
+      "user_permissions": []
+    }
+  },
+  {
+    "model": "games.vendor",
+    "pk": 1,
+    "fields": {
+      "name": "Steam"
+    }
+  },
+  {
+    "model": "games.vendor",
+    "pk": 2,
+    "fields": {
+      "name": "GOG"
+    }
+  },
+  {
+    "model": "games.vendor",
+    "pk": 3,
+    "fields": {
+      "name": "Nintendo eShop"
+    }
+  },
+  {
+    "model": "games.vendor",
+    "pk": 4,
+    "fields": {
+      "name": "PlayStation Store"
+    }
+  },
+  {
+    "model": "games.vendor",
+    "pk": 5,
+    "fields": {
+      "name": "Microsoft Store"
+    }
+  },
+  {
+    "model": "games.platform",
+    "pk": 1,
+    "fields": {
+      "name": "PC"
+    }
+  },
+  {
+    "model": "games.platform",
+    "pk": 2,
+    "fields": {
+      "name": "PlayStation 5"
+    }
+  },
+  {
+    "model": "games.platform",
+    "pk": 3,
+    "fields": {
+      "name": "Nintendo Switch"
+    }
+  },
+  {
+    "model": "games.platform",
+    "pk": 4,
+    "fields": {
+      "name": "Xbox"
+    }
+  },
+  {
+    "model": "games.genre",
+    "pk": 1,
+    "fields": {
+      "name": "Action RPG"
+    }
+  },
+  {
+    "model": "games.genre",
+    "pk": 2,
+    "fields": {
+      "name": "Roguelike"
+    }
+  },
+  {
+    "model": "games.genre",
+    "pk": 3,
+    "fields": {
+      "name": "Survival"
+    }
+  },
+  {
+    "model": "games.genre",
+    "pk": 4,
+    "fields": {
+      "name": "Co-op"
+    }
+  },
+  {
+    "model": "games.genre",
+    "pk": 5,
+    "fields": {
+      "name": "Deckbuilder"
+    }
+  },
+  {
+    "model": "games.genre",
+    "pk": 6,
+    "fields": {
+      "name": "Open World"
+    }
+  },
+  {
+    "model": "games.game",
+    "pk": "0907b37c-70dc-4a1d-bb63-7b7f6b87ff0b",
+    "fields": {
+      "name": "Stardew Valley",
+      "play_priority": 6,
+      "played": true,
+      "controller_support": true,
+      "max_players": 4,
+      "party_fit": true,
+      "review": 8,
+      "notes": "Relaxing farming sim with great co-op.",
+      "genres": [
+        3
+      ]
+    }
+  },
+  {
+    "model": "games.game",
+    "pk": "6cac85ba-c722-43f4-aef5-d2470de844ce",
+    "fields": {
+      "name": "The Witcher 3",
+      "play_priority": 8,
+      "played": true,
+      "controller_support": false,
+      "max_players": 1,
+      "party_fit": false,
+      "review": 10,
+      "notes": "Masterpiece open-world RPG.",
+      "genres": [
+        1,
+        6
+      ]
+    }
+  },
+  {
+    "model": "games.game",
+    "pk": "b4d990c8-b288-4b8c-9b20-df6e607ac7db",
+    "fields": {
+      "name": "Elden Ring",
+      "play_priority": 7,
+      "played": false,
+      "controller_support": true,
+      "max_players": 1,
+      "party_fit": false,
+      "review": 10,
+      "notes": "Stunning open world with challenging combat.",
+      "genres": [
+        1,
+        6
+      ]
+    }
+  },
+  {
+    "model": "games.game",
+    "pk": "bce7ddb4-a3eb-4b16-803b-ce941dc10575",
+    "fields": {
+      "name": "Hades",
+      "play_priority": 9,
+      "played": true,
+      "controller_support": true,
+      "max_players": 1,
+      "party_fit": false,
+      "review": 9,
+      "notes": "Incredible roguelike action.",
+      "genres": [
+        1,
+        2
+      ]
+    }
+  },
+  {
+    "model": "games.game",
+    "pk": "faade74d-f5d9-4250-a994-a17fc84bcfdd",
+    "fields": {
+      "name": "Slay the Spire",
+      "play_priority": 7,
+      "played": true,
+      "controller_support": false,
+      "max_players": 1,
+      "party_fit": false,
+      "review": 9,
+      "notes": "Best deckbuilder ever made.",
+      "genres": [
+        2,
+        5
+      ]
+    }
+  },
+  {
+    "model": "games.game",
+    "pk": "fafa9235-60bd-4682-838b-1162ec329557",
+    "fields": {
+      "name": "It Takes Two",
+      "play_priority": 5,
+      "played": false,
+      "controller_support": true,
+      "max_players": 2,
+      "party_fit": true,
+      "review": 9,
+      "notes": "Mandatory co-op adventure.",
+      "genres": [
+        4
+      ]
+    }
+  },
+  {
+    "model": "games.gameonplatform",
+    "pk": 1,
+    "fields": {
+      "game": "6cac85ba-c722-43f4-aef5-d2470de844ce",
+      "platform": 1,
+      "added": "2024-01-15",
+      "identifier": "witcher3-gog",
+      "price": "19.99",
+      "vendor": 2,
+      "deleted": false,
+      "deleted_at": null
+    }
+  },
+  {
+    "model": "games.gameonplatform",
+    "pk": 2,
+    "fields": {
+      "game": "6cac85ba-c722-43f4-aef5-d2470de844ce",
+      "platform": 2,
+      "added": "2024-03-20",
+      "identifier": "witcher3-ps5",
+      "price": "39.99",
+      "vendor": 4,
+      "deleted": false,
+      "deleted_at": null
+    }
+  },
+  {
+    "model": "games.gameonplatform",
+    "pk": 3,
+    "fields": {
+      "game": "bce7ddb4-a3eb-4b16-803b-ce941dc10575",
+      "platform": 1,
+      "added": "2024-02-10",
+      "identifier": "1145360",
+      "price": "24.99",
+      "vendor": 1,
+      "deleted": false,
+      "deleted_at": null
+    }
+  },
+  {
+    "model": "games.gameonplatform",
+    "pk": 4,
+    "fields": {
+      "game": "bce7ddb4-a3eb-4b16-803b-ce941dc10575",
+      "platform": 3,
+      "added": "2024-06-01",
+      "identifier": "Hades-switch",
+      "price": "24.99",
+      "vendor": 3,
+      "deleted": false,
+      "deleted_at": null
+    }
+  },
+  {
+    "model": "games.gameonplatform",
+    "pk": 5,
+    "fields": {
+      "game": "b4d990c8-b288-4b8c-9b20-df6e607ac7db",
+      "platform": 2,
+      "added": "2024-02-25",
+      "identifier": "eldenring-ps5",
+      "price": "59.99",
+      "vendor": 4,
+      "deleted": false,
+      "deleted_at": null
+    }
+  },
+  {
+    "model": "games.gameonplatform",
+    "pk": 6,
+    "fields": {
+      "game": "b4d990c8-b288-4b8c-9b20-df6e607ac7db",
+      "platform": 4,
+      "added": "2024-05-12",
+      "identifier": "eldenring-xbox",
+      "price": "49.99",
+      "vendor": 5,
+      "deleted": false,
+      "deleted_at": null
+    }
+  },
+  {
+    "model": "games.gameonplatform",
+    "pk": 7,
+    "fields": {
+      "game": "0907b37c-70dc-4a1d-bb63-7b7f6b87ff0b",
+      "platform": 1,
+      "added": "2024-04-05",
+      "identifier": "413150",
+      "price": "14.99",
+      "vendor": 1,
+      "deleted": false,
+      "deleted_at": null
+    }
+  },
+  {
+    "model": "games.gameonplatform",
+    "pk": 8,
+    "fields": {
+      "game": "0907b37c-70dc-4a1d-bb63-7b7f6b87ff0b",
+      "platform": 3,
+      "added": "2024-07-18",
+      "identifier": "Stardew-switch",
+      "price": "14.99",
+      "vendor": 3,
+      "deleted": false,
+      "deleted_at": null
+    }
+  },
+  {
+    "model": "games.gameonplatform",
+    "pk": 9,
+    "fields": {
+      "game": "fafa9235-60bd-4682-838b-1162ec329557",
+      "platform": 2,
+      "added": "2024-06-15",
+      "identifier": "ittakestwo-ps5",
+      "price": "39.99",
+      "vendor": 4,
+      "deleted": false,
+      "deleted_at": null
+    }
+  },
+  {
+    "model": "games.gameonplatform",
+    "pk": 10,
+    "fields": {
+      "game": "fafa9235-60bd-4682-838b-1162ec329557",
+      "platform": 4,
+      "added": "2024-08-01",
+      "identifier": "ittakestwo-xbox",
+      "price": "34.99",
+      "vendor": 5,
+      "deleted": false,
+      "deleted_at": null
+    }
+  },
+  {
+    "model": "games.gameonplatform",
+    "pk": 11,
+    "fields": {
+      "game": "faade74d-f5d9-4250-a994-a17fc84bcfdd",
+      "platform": 1,
+      "added": "2024-03-01",
+      "identifier": "646570",
+      "price": "24.99",
+      "vendor": 1,
+      "deleted": false,
+      "deleted_at": null
+    }
+  }
+]
