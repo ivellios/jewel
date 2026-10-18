@@ -13,20 +13,33 @@ https://docs.djangoproject.com/en/4.1/ref/settings/
 import os
 from pathlib import Path
 
+from django.core.management.utils import get_random_secret_key
+
+from dotenv import load_dotenv
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+# Load .env file if present, without overriding existing process env vars.
+_load_path = BASE_DIR / ".env"
+if _load_path.is_file():
+    load_dotenv(_load_path, override=False)
 
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/4.1/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = "&q_ud^+s+@t6intll5j&+yaukniv75gmemn1gah2xfr^c$$4"
+SECRET_KEY = os.getenv("JEWEL_SECRET_KEY") or get_random_secret_key()
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv("JEWEL_DEBUG", "True") == "True"
 
-ALLOWED_HOSTS = os.getenv("JEWEL_ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
+ALLOWED_HOSTS = [
+    host.strip().lower()
+    for host in os.getenv("JEWEL_ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
+    if host.strip()
+]
 
 # Application definition
 
@@ -87,7 +100,7 @@ else:
     DATABASES = {
         "default": {
             "ENGINE": "django.db.backends.sqlite3",
-            "NAME": BASE_DIR / "db.sqlite3",
+            "NAME": str(BASE_DIR / "db.sqlite3"),
         }
     }
 

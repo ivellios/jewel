@@ -9,7 +9,7 @@ class Command(BaseCommand):
         parser.add_argument("file_path", help="Path to the CSV data file")
 
     def handle(self, *args, **options):
-        file_path = options.get("file_path")
+        file_path = options["file_path"]
 
         importer = CSVGamesImporter(
             file_path,

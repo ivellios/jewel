@@ -1,5 +1,5 @@
 import abc
-import uuid
+from uuid import UUID
 
 from abstract.games import GameInterface
 
@@ -12,5 +12,5 @@ class GameRepository(abc.ABC):
 
     @staticmethod
     @abc.abstractmethod
-    def remove(identifier: uuid.uuid4):
+    def remove(identifier: UUID):
         pass

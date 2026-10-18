@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import UTC, datetime
 from decimal import Decimal
 
 import pytest
@@ -54,7 +54,7 @@ def simple_game_on_platform():
 
     class SimpleGameOnPlatform(GameOnPlatformInterface):
         platform = SimplePlatform()
-        added = datetime.now().date()
+        added = datetime.now(UTC).date()
         identifier = "Some identifier"
         price = Decimal("5.55")
         vendor = None

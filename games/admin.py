@@ -1,10 +1,11 @@
-from datetime import date, timedelta
+from datetime import timedelta
 from decimal import Decimal
 
 from django.contrib import admin
 from django.db import models
 from django.db.models import Count, Q
 from django.urls import path, reverse
+from django.utils import timezone
 from django.utils.formats import localize
 from django.utils.safestring import mark_safe
 
@@ -43,7 +44,7 @@ class GameStatusFilter(admin.SimpleListFilter):
     def queryset(self, request, queryset):
         if self.value() == "active":
             return queryset.filter(platforms_meta_data__deleted=False).distinct()
-        elif self.value() == "orphaned":
+        if self.value() == "orphaned":
             return queryset.exclude(platforms_meta_data__deleted=False)
         return queryset
 
@@ -61,15 +62,15 @@ class LatestAddedFilter(admin.SimpleListFilter):
         )
 
     def queryset(self, request, queryset):
-        today = date.today()
+        today = timezone.localdate()
 
         if self.value() == "today":
             return queryset.filter(latest_added=today)
-        elif self.value() == "week":
+        if self.value() == "week":
             return queryset.filter(latest_added__gte=today - timedelta(days=7))
-        elif self.value() == "month":
+        if self.value() == "month":
             return queryset.filter(latest_added__gte=today - timedelta(days=30))
-        elif self.value() == "never":
+        if self.value() == "never":
             return queryset.filter(latest_added__isnull=True)
         return queryset
 
@@ -157,6 +158,7 @@ class GameAdmin(admin.ModelAdmin):
             .order_by("-latest_added")
         )
 
+    @admin.display(description="Active Platforms")
     def active_platforms(self, obj):
         active_platforms = obj.platforms_meta_data.filter(deleted=False).select_related(
             "platform"
@@ -164,53 +166,44 @@ class GameAdmin(admin.ModelAdmin):
         platform_names = [gop.platform.name for gop in active_platforms]
         return ", ".join(platform_names) if platform_names else "None"
 
-    active_platforms.short_description = "Active Platforms"
-
+    @admin.display(description="Vendors")
     def vendors_list(self, obj):
         vendors = obj.platforms_meta_data.filter(deleted=False).select_related("vendor")
         vendor_names = {gop.vendor.name for gop in vendors if gop.vendor}
         return ", ".join(sorted(vendor_names)) if vendor_names else "None"
 
-    vendors_list.short_description = "Vendors"
-
+    @admin.display(description="Game URL")
     def game_url(self, obj: Game):
         if obj.platforms.filter(name__iexact="Steam").exists():
             steam_gop = obj.platforms_meta_data.filter(
                 platform__name__iexact="Steam", deleted=False
             ).first()
             if steam_gop and steam_gop.identifier:
-                return mark_safe(
+                return mark_safe(  # noqa: S308 - identifier is stored as a Steam app ID.
                     f'<a href="https://store.steampowered.com/app/{steam_gop.identifier}/" target="_blank">Steam Link</a>'
                 )
         return "-"
 
-    game_url.allow_tags = True
-    game_url.short_description = "Game URL"
-
+    @admin.display(description="Total Paid", ordering="total_price")
     def total_price_paid(self, obj):
         if obj.total_price is None or obj.total_price == 0:
             return localize(0)
         total = obj.total_price
         return localize(total.quantize(Decimal("0.01")))
 
-    total_price_paid.short_description = "Total Paid"
-    total_price_paid.admin_order_field = "total_price"
-
+    @admin.display(description="Latest Added", ordering="latest_added")
     def latest_added_date(self, obj):
         return obj.latest_added if obj.latest_added else "Never"
 
-    latest_added_date.short_description = "Latest Added"
-    latest_added_date.admin_order_field = "latest_added"
-
+    @admin.display(
+        boolean=True, description="Orphaned", ordering="active_platform_count"
+    )
     def is_orphaned(self, obj):
         return obj.active_platform_count == 0
 
-    is_orphaned.boolean = True
-    is_orphaned.short_description = "Orphaned"
-    is_orphaned.admin_order_field = "active_platform_count"
-
     actions = ["match_steam_identifier", "restore_all_platforms", "make_orphaned"]
 
+    @admin.action(description="Match Steam identifiers for selected games")
     def match_steam_identifier(self, request, queryset):
         count = 0
         for game in queryset:
@@ -227,10 +220,7 @@ class GameAdmin(admin.ModelAdmin):
                 count += 1
         self.message_user(request, f"Updated {count} Steam game identifiers.")
 
-    match_steam_identifier.short_description = (
-        "Match Steam identifiers for selected games"
-    )
-
+    @admin.action(description="Restore all platforms for selected games")
     def restore_all_platforms(self, request, queryset):
         count = 0
         for game in queryset:
@@ -240,8 +230,7 @@ class GameAdmin(admin.ModelAdmin):
             count += restored
         self.message_user(request, f"Restored {count} platform relationships.")
 
-    restore_all_platforms.short_description = "Restore all platforms for selected games"
-
+    @admin.action(description="Remove all platforms from selected games")
     def make_orphaned(self, request, queryset):
         count = 0
         for game in queryset:
@@ -250,8 +239,6 @@ class GameAdmin(admin.ModelAdmin):
                 platform.soft_delete()
                 count += 1
         self.message_user(request, f"Soft-deleted {count} platform relationships.")
-
-    make_orphaned.short_description = "Remove all platforms from selected games"
 
     def get_urls(self):
         """Add custom URL for bulk import"""

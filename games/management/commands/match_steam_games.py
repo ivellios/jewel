@@ -36,5 +36,5 @@ class Command(BaseCommand):
             game_copy.save()
 
         print(f"Found {len(no_matches)} games with no matches:")
-        for game in no_matches:
-            pprint(f"- {game[0]} (ID: {game[1]})")
+        for game_name, game_id in no_matches:
+            pprint(f"- {game_name} (ID: {game_id})")

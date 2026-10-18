@@ -1,4 +1,4 @@
-from datetime import date, timedelta
+from datetime import timedelta
 from decimal import Decimal
 from unittest.mock import patch
 
@@ -6,6 +6,7 @@ from django.contrib.admin.sites import AdminSite
 from django.contrib.messages.storage.fallback import FallbackStorage
 from django.db import models
 from django.test import RequestFactory, TestCase
+from django.utils import timezone
 
 from games.admin import GameAdmin, LatestAddedFilter, VendorFilter
 from games.api.__tests__.factories import (
@@ -85,8 +86,8 @@ class GameAdminDisplayTestCase(TestCase):
         """Test latest_added_date shows most recent platform addition date"""
         # Prevent factory from creating automatic platform relationship
         game = GameFactory(name="Test Game", platforms=False)
-        older_date = date.today() - timedelta(days=10)
-        newer_date = date.today() - timedelta(days=5)
+        older_date = timezone.localdate() - timedelta(days=10)
+        newer_date = timezone.localdate() - timedelta(days=5)
 
         # Add game to platform on different dates
         GameOnPlatform.objects.create(
@@ -189,7 +190,7 @@ class AdminFilterTestCase(TestCase):
         lookups = filter_instance.lookups(None, None)
 
         # Should only show vendors with active games
-        vendor_names = [name for id, name in lookups]
+        vendor_names = [name for vendor_id, name in lookups]
         self.assertIn("Steam", vendor_names)
         self.assertIn("Epic Games", vendor_names)
         self.assertNotIn("Unused Vendor", vendor_names)
@@ -224,7 +225,7 @@ class AdminFilterTestCase(TestCase):
 
     def test_latest_added_filter_today(self):
         """Test LatestAddedFilter filters for today's games"""
-        today = date.today()
+        today = timezone.localdate()
         yesterday = today - timedelta(days=1)
 
         # Create games - one added today, one added yesterday

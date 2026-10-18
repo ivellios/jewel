@@ -1,6 +1,8 @@
+from typing import cast
+
 from django.db import models
 
-from fuzzywuzzy import process
+from fuzzywuzzy import process  # type: ignore[import-untyped]  # lacks py.typed
 
 
 class SteamGameQuerySet(models.QuerySet):
@@ -12,8 +14,8 @@ class SteamGameQuerySet(models.QuerySet):
         return list(self.values_list("name", flat=True))
 
     def fuzzy_search(
-        self, name, all_names: list[str] = None, threshold: int = 95
-    ) -> "SteamGame":
+        self, name: str, all_names: list[str] | None = None, threshold: int = 95
+    ) -> "SteamGame | None":
         """
         Perform a fuzzy search on the name field.
 
@@ -22,7 +24,7 @@ class SteamGameQuerySet(models.QuerySet):
         """
         exact_matches = self.filter(name__iexact=name)
         if exact_matches.exists():
-            return exact_matches.first()
+            return cast("SteamGame | None", exact_matches.first())
 
         all_names = all_names or self.all_names()
 
@@ -30,9 +32,9 @@ class SteamGameQuerySet(models.QuerySet):
         fuzzy_name = fuzzy_matches[0][0] if fuzzy_matches[0][1] >= threshold else None
 
         if not fuzzy_name:
-            return self.none()
+            return None
 
-        return self.get(name=fuzzy_name)
+        return cast("SteamGame", self.get(name=fuzzy_name))
 
 
 class SteamGame(models.Model):

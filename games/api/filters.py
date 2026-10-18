@@ -30,9 +30,8 @@ class EnhancedSearchFilter(django_filters.CharFilter):
                 q_objects |= Q(name__icontains=name)
 
             return qs.filter(q_objects)
-        else:
-            # Single game search - use the standard icontains lookup
-            return qs.filter(name__icontains=value)
+        # Single game search - use the standard icontains lookup
+        return qs.filter(name__icontains=value)
 
 
 class GameFilterSet(django_filters.FilterSet):

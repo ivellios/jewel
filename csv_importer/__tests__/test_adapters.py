@@ -66,7 +66,7 @@ def test_genre_values(input_value, output_value):
 @pytest.mark.parametrize(
     "input_value,output_value",
     [
-        ("2022-05-02", datetime.datetime(2022, 5, 2)),
+        ("2022-05-02", datetime.datetime(2022, 5, 2, tzinfo=datetime.UTC)),
         (None, None),
         ("Some Bad Date", None),
     ],
