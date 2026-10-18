@@ -16,7 +16,7 @@ class Command(BaseCommand):
 
     def load_library(self):
         repository = SteamGamesRepository()
-        response = requests.get(self.LIBRARY_URL)
+        response = requests.get(self.LIBRARY_URL, timeout=30)
         logger.info("Status %s", response.status_code)
         if response.status_code == 200:
             games = response.json().get("applist", {}).get("apps", [])

@@ -1,4 +1,5 @@
-import uuid
+from typing import cast
+from uuid import UUID
 
 from abstract.games import GameInterface, GameOnPlatformInterface
 from abstract.repositories import GameRepository
@@ -64,7 +65,7 @@ class DjangoGameRepository(GameRepository):
                     setattr(game_model, field, value)
 
         game_model.save(update_fields=list(data.keys()))
-        return game_model, created
+        return cast(tuple[Game, bool], (game_model, created))
 
     @staticmethod
     def game_to_dict(game: GameInterface) -> dict:
@@ -77,7 +78,7 @@ class DjangoGameRepository(GameRepository):
         return data
 
     @staticmethod
-    def create(game: GameInterface) -> Game:
+    def create(game: GameInterface) -> tuple[Game, bool]:
         data = DjangoGameRepository.game_to_dict(game)
 
         game_model, created = DjangoGameRepository.create_game_model(game, data)
@@ -88,10 +89,10 @@ class DjangoGameRepository(GameRepository):
             DjangoGameRepository.create_game_on_platforms(game_model, game.platforms)
 
         game_model.refresh_from_db()
-        return game_model, created
+        return cast(tuple[Game, bool], (game_model, created))
 
     @staticmethod
-    def remove(identifier: uuid.uuid4):
+    def remove(identifier: UUID):
         try:
             game = Game.objects.all_with_orphaned().get(id=identifier)
             game.delete()

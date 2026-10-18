@@ -7,5 +7,3 @@ class SteamConfig(AppConfig):
 
     def ready(self):
         from . import signals_processors  # noqa: F401
-
-        pass

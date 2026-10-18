@@ -1,13 +1,38 @@
+# pre-commit / prek configuration
+# https://github.com/astral-sh/pre-commit
+#
+# Usage:
+#   prek install          # install hooks into .git/hooks
+#   prek run --all-files  # run all hooks on every tracked file
+#   prek run <hook-id>    # run a single hook on every tracked file
+#
+# The file keeps the .pre-commit-config.yaml extension so that both
+# `pre-commit` and `prek` recognize it automatically.
+
 repos:
+  # ── Linting & formatting (auto-fix) ──────────────────────────
+
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    # Ruff version.
     rev: v0.12.9
     hooks:
-      # Run the linter.
+      # Lint with auto-fix where possible
       - id: ruff
         args: [--fix]
-      # Run the formatter.
+      # Formatter (replaces Black)
       - id: ruff-format
+
+  # ── Type checking (local/system hook, same environment as CI) ──
+
+  - repo: local
+    hooks:
+      - id: mypy
+        name: mypy
+        entry: uv run mypy --config-file pyproject.toml games csv_importer steam abstract jewel
+        language: system
+        pass_filenames: false
+        always_run: true
+
+  # ── General housekeeping (validation-only) ────────────────────
 
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.4.0

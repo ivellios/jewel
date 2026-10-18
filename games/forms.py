@@ -1,8 +1,9 @@
-from datetime import date
 from decimal import Decimal
+from typing import Any, cast
 
 from django import forms
 from django.forms import formsets
+from django.utils import timezone
 
 from games.models import Platform, Vendor
 
@@ -18,7 +19,7 @@ class BulkGameImportForm(forms.Form):
 
     bundle_date = forms.DateField(
         required=True,
-        initial=date.today,
+        initial=timezone.localdate,
         widget=forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"),
         help_text="Date when the bundle was purchased",
     )
@@ -55,7 +56,7 @@ class BulkGameImportForm(forms.Form):
     )
 
     def clean(self):
-        cleaned_data = super().clean()
+        cleaned_data = cast(dict[str, Any], super().clean())
         quick_games = cleaned_data.get("quick_games")
         global_platform = cleaned_data.get("global_platform")
 
@@ -115,7 +116,7 @@ class GameImportForm(forms.Form):
         return not game_name
 
 
-class GameImportFormSet(formsets.BaseFormSet):
+class BaseGameImportFormSet(formsets.BaseFormSet):
     """Formset for handling multiple game entries"""
 
     def __init__(self, *args, **kwargs):
@@ -142,21 +143,17 @@ class GameImportFormSet(formsets.BaseFormSet):
 
     def get_valid_games(self):
         """Get list of valid, non-empty games from the formset"""
-        valid_games = []
-        for form in self.forms:
-            if (
-                hasattr(form, "cleaned_data")
-                and form.is_valid()
-                and not form.is_empty()
-            ):
-                valid_games.append(form.cleaned_data)
-        return valid_games
+        return [
+            form.cleaned_data
+            for form in self.forms
+            if hasattr(form, "cleaned_data") and form.is_valid() and not form.is_empty()
+        ]
 
 
 # Create the formset class
 GameImportFormSet = formsets.formset_factory(
     GameImportForm,
-    formset=GameImportFormSet,
+    formset=BaseGameImportFormSet,
     extra=5,  # Show 5 empty forms by default
     max_num=100,  # Maximum number of games in one import
     validate_max=True,

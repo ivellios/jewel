@@ -4,27 +4,41 @@ version = "0.1.0"
 requires-python = ">=3.13"
 dependencies = [
     "dj-database-url>=2.0.0",
+    "python-dotenv>=1.0.0",
     "django==5.2.15",
     "django-extensions>=3.2.3",
     "django-filter>=24.0",
     "djangorestframework>=3.15.0",
+    "fuzzywuzzy>=0.18.0",
+    "markdown==3.4.1",
+    "pandas>=2.3.1",
+    "price-parser==0.3.4",
+    "psycopg2-binary>=2.9.0",
+    "python-levenshtein>=0.27.1",
+    "requests>=2.33.0",
+    "tqdm==4.66.3",
+    "uwsgi>=2.0.30",
+]
+
+[project.optional-dependencies]
+dev = [
     "factory-boy>=3.3.0",
     "fuzzywuzzy>=0.18.0",
     "ipdb==0.13.9",
     "ipython==8.10.0",
-    "markdown==3.4.1",
-    "pandas>=2.3.1",
+    "mypy>=1.15",
+    "django-stubs[compatible-mypy]>=5.1",
+    "djangorestframework-stubs>=3.15",
+    "types-requests>=2.31",
+    "pandas-stubs>=2.0",
+    "types-tqdm>=4.66",
+    "types-django-filter>=24.0",
     "pre-commit==2.20.0",
-    "price-parser==0.3.4",
-    "psycopg2-binary>=2.9.0",
     "pytest==9.0.3",
     "pytest-django==4.5.2",
     "pytest-watch==4.2.0",
+    "ruff>=0.12.9",
     "python-levenshtein>=0.27.1",
-    "requests>=2.33.0",
-    "ruff>=0.8.0",
-    "tqdm==4.66.3",
-    "uwsgi>=2.0.30",
 ]
 
 [tool.ruff]
@@ -50,11 +64,30 @@ select = [
     "B",       # flake8-bugbear
     "C4",      # flake8-comprehensions
     "SIM",     # flake8-simplify
+    "A",       # flake8-builtins
+    "DTZ",     # flake8-datetimez
+    "T10",     # flake8-debugger
+    "ISC",     # flake8-implicit-str-concat
+    "PIE",     # flake8-pie
+    "RSE",     # flake8-raise
+    "RET",     # flake8-return
+    "S",       # flake8-bandit (security)
+    "PERF",    # perflint
+    "FA",      # flake8-future-analogies
 ]
 
 ignore = [
     "DJ001",   # Django models without __str__ method
+    "S101",    # Use of `assert` detected (acceptable in tests)
+    "S603",    # `subprocess` call without `shell=True` (intentional)
+    "S311",    # Standard pseudo-random generators (non-security context)
+    "S324",    # Use of MD5/SHA1/SHA256 (Django internal)
+    "SIM108",  # Use ternary operator (prefer explicit if/else for clarity)
+    "PERF203", # `try`-`except`-`pass` (acceptable in some edge cases)
 ]
+
+# Per-file ignores for generated/auto-generated code
+per-file-ignores = { "games/migrations/*" = ["E501", "D100", "D101", "D102", "D103"] }
 
 # Allow fix for all enabled rules (when `--fix`) is provided.
 fixable = ["ALL"]
@@ -83,3 +116,30 @@ section-order = ["future", "standard-library", "django", "third-party", "first-p
 
 [tool.ruff.lint.isort.sections]
 django = ["django"]
+
+[tool.mypy]
+# Base strictness that can be raised incrementally
+python_version = "3.13"
+plugins = ["mypy_django_plugin.main"]
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+check_untyped_defs = true
+disallow_untyped_decorators = false
+no_implicit_optional = true
+strict_optional = true
+
+# Exclude migrations, tests, and generated/cache code
+exclude = [
+    "games/migrations",
+    "steam/migrations",
+    ".*__pycache__.*",
+    ".*__tests__.*",
+    ".*fixtures.*",
+    ".*templates.*",
+    ".*generated.*",
+]
+
+[tool.django-stubs]
+django_settings_module = "jewel.settings_tests"

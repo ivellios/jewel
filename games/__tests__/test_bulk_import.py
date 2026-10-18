@@ -1,9 +1,9 @@
-from datetime import date
 from decimal import Decimal
 
 from django.contrib.admin.sites import AdminSite
 from django.contrib.messages.storage.fallback import FallbackStorage
 from django.test import RequestFactory, TestCase
+from django.utils import timezone
 
 from games.admin import GameAdmin
 from games.admin_views.bulk_import import bulk_import_view, process_bulk_import
@@ -383,7 +383,7 @@ class BulkGameImportAdminTestCase(TestCase):
 
         # Check that the form contains today's date as default
         self.assertEqual(response.status_code, 200)
-        today = date.today().isoformat()
+        today = timezone.localdate().isoformat()
         self.assertContains(response, f'value="{today}"')
 
     def test_bulk_import_free_bundle_price_zero(self):
@@ -427,11 +427,11 @@ class BulkGameImportAdminTestCase(TestCase):
         form = BulkGameImportForm()
 
         # Form should have today as the initial value (function reference)
-        self.assertEqual(form.fields["bundle_date"].initial, date.today)
+        self.assertEqual(form.fields["bundle_date"].initial, timezone.localdate)
 
         # Unbound form should show today's date in rendered HTML
         rendered_html = str(form["bundle_date"])
-        self.assertIn(f'value="{date.today().isoformat()}"', rendered_html)
+        self.assertIn(f'value="{timezone.localdate().isoformat()}"', rendered_html)
         self.assertIn('type="date"', rendered_html)
 
 
@@ -816,7 +816,7 @@ class BulkImportViewTestCase(TestCase):
 
         self.assertEqual(response.status_code, 200)
         # Check that the form contains today's date as default
-        today = date.today().isoformat()
+        today = timezone.localdate().isoformat()
         self.assertContains(response, f'value="{today}"')
 
     def test_bulk_import_with_global_notes_only(self):

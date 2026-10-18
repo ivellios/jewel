@@ -28,7 +28,7 @@ def bulk_import_view(request):
             },
         )
 
-    elif request.method == "POST":
+    if request.method == "POST":
         # Process the form
         form = BulkGameImportForm(request.POST)
 
@@ -42,23 +42,25 @@ def bulk_import_view(request):
             except Platform.DoesNotExist:
                 global_platform = None
 
-        formset = GameImportFormSet(request.POST, global_platform=global_platform)
+        formset = GameImportFormSet(  # type: ignore[call-arg]  # Custom formset accepts it.
+            request.POST, global_platform=global_platform
+        )
 
         if form.is_valid() and formset.is_valid():
             return process_bulk_import(request, form, formset)
-        else:
-            # Re-render form with errors
-            return render(
-                request,
-                "admin/games/game/bulk_import.html",
-                {
-                    "form": form,
-                    "formset": formset,
-                    "title": "Bulk Import Games",
-                    "opts": Game._meta,
-                    "has_change_permission": True,
-                },
-            )
+        # Re-render form with errors
+        return render(
+            request,
+            "admin/games/game/bulk_import.html",
+            {
+                "form": form,
+                "formset": formset,
+                "title": "Bulk Import Games",
+                "opts": Game._meta,
+                "has_change_permission": True,
+            },
+        )
+    return None
 
 
 @transaction.atomic
@@ -102,15 +104,15 @@ def process_bulk_import(request, form, formset):
     quick_games_list = form.get_quick_games_list()
     if quick_games_list:
         # Quick games always use global_platform (validation ensures it's set)
-        for game_name in quick_games_list:
-            games_to_import.append(
-                {
-                    "name": game_name,
-                    "platform": global_platform,
-                    "play_priority": None,
-                    "notes": global_notes,
-                }
-            )
+        games_to_import.extend(
+            {
+                "name": game_name,
+                "platform": global_platform,
+                "play_priority": None,
+                "notes": global_notes,
+            }
+            for game_name in quick_games_list
+        )
 
     # Check for duplicates
     new_games_on_platforms = []

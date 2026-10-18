@@ -14,7 +14,10 @@ def set_steam_game_appid(gop: GameOnPlatform) -> bool | None:
     added_game_name = gop.game.name
     steam_games = SteamGame.objects.filter(name__iexact=added_game_name)
     if steam_games.exists():
-        gop.identifier = steam_games.first().appid
+        steam_game = steam_games.first()
+        if steam_game is None:
+            return False
+        gop.identifier = steam_game.appid
         gop.save(update_fields=["identifier"])
         return True
     return False

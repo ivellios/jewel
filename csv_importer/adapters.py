@@ -1,4 +1,7 @@
-from datetime import datetime
+# mypy: disable-error-code="override"
+
+from datetime import UTC, datetime
+from typing import Any
 
 from price_parser import Price
 
@@ -11,13 +14,13 @@ class CSVPlatformAdapter(PlatformInterface):
 
 
 class CSVGameOnPlatformAdapter(GameOnPlatformInterface):
-    def __init__(self, data: dict):
+    def __init__(self, data: dict[str, Any]):
         self.data = data
         self.identifier = None
 
     @property
     def name(self) -> str:
-        return self.data.get("name")
+        return str(self.data.get("name", ""))
 
     @property
     def price(self):
@@ -27,7 +30,10 @@ class CSVGameOnPlatformAdapter(GameOnPlatformInterface):
     @property
     def added(self):
         try:
-            return datetime.strptime(self.data.get("added"), "%Y-%m-%d")
+            added = self.data.get("added")
+            if not isinstance(added, str):
+                return None
+            return datetime.strptime(added, "%Y-%m-%d").replace(tzinfo=UTC)
         except (ValueError, TypeError):
             return None
 
@@ -41,7 +47,7 @@ class CSVGameOnPlatformAdapter(GameOnPlatformInterface):
 
 
 class CSVGameAdapter(GameInterface):
-    def __init__(self, data: dict):
+    def __init__(self, data: dict[str, Any]):
         self.data = data
 
     def _convert_to_int(self, key):
@@ -50,10 +56,10 @@ class CSVGameAdapter(GameInterface):
             return int(value[:2]) if value else None
         except (ValueError, TypeError):
             try:
-                return int(value[-1])
+                return int(value[-1]) if value else None
             except (ValueError, TypeError):
                 try:
-                    return int(value[0])
+                    return int(value[0]) if value else None
                 except (ValueError, TypeError):
                     return None
 

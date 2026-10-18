@@ -34,11 +34,11 @@ class VendorSerializer(serializers.ModelSerializer):
 
 class GameOnPlatformSerializer(serializers.ModelSerializer):
     platform = PlatformSerializer(read_only=True)
-    source = VendorSerializer(read_only=True)
+    vendor = VendorSerializer(read_only=True)
 
     class Meta:
         model = GameOnPlatform
-        fields = ["platform", "added", "identifier", "price", "source"]
+        fields = ["platform", "added", "identifier", "price", "vendor"]
 
 
 class GameSerializer(serializers.ModelSerializer):

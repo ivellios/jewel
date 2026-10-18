@@ -1,3 +1,5 @@
+from typing import Any
+
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import generics, status
 from rest_framework.permissions import IsAuthenticated
@@ -56,7 +58,7 @@ class GamePlatformCreateAPIView(generics.CreateAPIView):
     permission_classes = [IsAuthenticated]
 
     def get_serializer_context(self):
-        context = super().get_serializer_context()
+        context: dict[str, Any] = dict(super().get_serializer_context())
         try:
             game = Game.objects.get(id=self.kwargs["game_id"])
             context["game"] = game

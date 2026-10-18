@@ -21,7 +21,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/4.1/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = "&q_ud^+s+@t6intll5j&+yaukniv75gmemn1gah2xfr^c$$4"
+SECRET_KEY = "test-secret-key"  # noqa: S105 - required isolated Django test setting.
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
@@ -89,7 +89,7 @@ else:
     DATABASES = {
         "default": {
             "ENGINE": "django.db.backends.sqlite3",
-            "NAME": BASE_DIR / "db_tests.sqlite3",
+            "NAME": str(BASE_DIR / "db_tests.sqlite3"),
         }
     }
 
@@ -136,7 +136,7 @@ STATIC_URL = "static/"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # API Configuration
-API_TOKEN = "test-token"
+API_TOKEN = "test-token"  # noqa: S105 - required isolated API test setting.
 
 # Django REST Framework
 REST_FRAMEWORK = {

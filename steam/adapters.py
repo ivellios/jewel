@@ -1,10 +1,14 @@
+# mypy: disable-error-code="override"
+
+from typing import Any
+
 from abstract.games import SteamGameInterface
 
 from .models import SteamGame
 
 
 class SteamGameAdapter(SteamGameInterface):
-    def __init__(self, game: SteamGame, data: dict):
+    def __init__(self, game: SteamGame, data: dict[str, Any]):
         self.data = data
         self.game = game
 
@@ -22,7 +26,7 @@ class SteamGameAdapter(SteamGameInterface):
 
     @property
     def platforms(self):
-        platforms = self.data.get("platforms")
+        platforms = self.data.get("platforms") or {}
         return [platform for platform in platforms if platforms.get(platform) is True]
 
     @property
@@ -35,11 +39,14 @@ class SteamGameAdapter(SteamGameInterface):
 
     @property
     def categories(self):
-        return [category.get("description") for category in self.data.get("categories")]
+        return [
+            category.get("description")
+            for category in self.data.get("categories") or []
+        ]
 
     @property
     def genres(self):
-        return [genre.get("description") for genre in self.data.get("genres")]
+        return [genre.get("description") for genre in self.data.get("genres") or []]
 
     @property
     def recommendations(self):
