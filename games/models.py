@@ -30,7 +30,7 @@ class Genre(NamedModel, models.Model):
     pass
 
 
-class GameQuerySet(models.QuerySet):
+class VideoGameQuerySet(models.QuerySet):
     def with_active_platforms(self):
         """Return games that have at least one non-deleted platform"""
         return self.filter(platforms_meta_data__deleted=False).distinct()
@@ -41,7 +41,7 @@ class GameQuerySet(models.QuerySet):
         return self.exclude(platforms_meta_data__deleted=False)
 
 
-class GameManager(models.Manager):
+class VideoGameManager(models.Manager):
     def get_queryset(self):
         """Override to exclude orphaned games by default"""
         return (
@@ -54,7 +54,7 @@ class GameManager(models.Manager):
 
     def orphaned_only(self):
         """Return only orphaned games (no platforms or all platforms deleted)"""
-        return GameQuerySet(self.model, using=self._db).orphaned()
+        return VideoGameQuerySet(self.model, using=self._db).orphaned()
 
 
 class CollectionItem(models.Model):
@@ -103,7 +103,7 @@ class VideoGame(CollectionItem):
     party_fit = models.BooleanField(default=False, null=True, blank=True)
     genres = models.ManyToManyField(Genre, blank=True)
 
-    objects = GameManager.from_queryset(GameQuerySet)()
+    objects = VideoGameManager.from_queryset(VideoGameQuerySet)()
 
     def __str__(self):
         return self.name
@@ -160,8 +160,3 @@ class VideoGameOnPlatform(models.Model):
         self.deleted = False
         self.deleted_at = None
         self.save(update_fields=["deleted", "deleted_at"])
-
-
-# Temporary compatibility alias: all external imports still use `Game`.
-# Remove this alias in packets that rename importers/serializers/admin.
-Game = VideoGame

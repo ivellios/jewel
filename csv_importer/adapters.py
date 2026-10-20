@@ -5,7 +5,11 @@ from typing import Any
 
 from price_parser import Price
 
-from abstract.games import GameInterface, GameOnPlatformInterface, PlatformInterface
+from abstract.games import (
+    GameOnPlatformInterface,
+    PlatformInterface,
+    VideoGameInterface,
+)
 
 
 class CSVPlatformAdapter(PlatformInterface):
@@ -46,7 +50,7 @@ class CSVGameOnPlatformAdapter(GameOnPlatformInterface):
         return CSVPlatformAdapter(self.name.strip())
 
 
-class CSVGameAdapter(GameInterface):
+class CSVGameAdapter(VideoGameInterface):
     def __init__(self, data: dict[str, Any]):
         self.data = data
 

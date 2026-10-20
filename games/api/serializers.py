@@ -2,7 +2,7 @@ from django.utils import timezone
 
 from rest_framework import serializers
 
-from ..models import Game, Genre, Vendor, VideoGameOnPlatform, VideoGamePlatform
+from ..models import Genre, Vendor, VideoGame, VideoGameOnPlatform, VideoGamePlatform
 
 
 class PlatformSerializer(serializers.ModelSerializer):
@@ -46,7 +46,7 @@ class GameSerializer(serializers.ModelSerializer):
     genres = GenreSerializer(many=True, read_only=True)
 
     class Meta:
-        model = Game
+        model = VideoGame
         fields = [
             "id",
             "name",
@@ -69,7 +69,7 @@ class GameCreateSerializer(serializers.ModelSerializer):
     price = serializers.DecimalField(max_digits=6, decimal_places=2, write_only=True)
 
     class Meta:
-        model = Game
+        model = VideoGame
         fields = [
             "name",
             "platform_name",
@@ -114,7 +114,7 @@ class GameCreateSerializer(serializers.ModelSerializer):
             vendor = Vendor.objects.create(name=vendor_name)
 
         # Create the game
-        game = Game.objects.create(**validated_data)
+        game = VideoGame.objects.create(**validated_data)
 
         # Create the VideoGameOnPlatform relationship
         VideoGameOnPlatform.objects.create(
@@ -130,7 +130,7 @@ class GameCreateSerializer(serializers.ModelSerializer):
 
 class GameUpdateSerializer(serializers.ModelSerializer):
     class Meta:
-        model = Game
+        model = VideoGame
         fields = [
             "name",
             "play_priority",

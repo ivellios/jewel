@@ -1,15 +1,21 @@
 from typing import cast
 from uuid import UUID
 
-from abstract.games import GameInterface, GameOnPlatformInterface
-from abstract.repositories import GameRepository
-from games.models import Game, Genre, Vendor, VideoGameOnPlatform, VideoGamePlatform
+from abstract.games import GameOnPlatformInterface, VideoGameInterface
+from abstract.repositories import VideoGameRepository
+from games.models import (
+    Genre,
+    Vendor,
+    VideoGame,
+    VideoGameOnPlatform,
+    VideoGamePlatform,
+)
 
 
-class DjangoGameRepository(GameRepository):
+class DjangoGameRepository(VideoGameRepository):
     @staticmethod
     def create_game_on_platforms(
-        game_model: Game, platforms: list[GameOnPlatformInterface]
+        game_model: VideoGame, platforms: list[GameOnPlatformInterface]
     ):
         for platform_game in platforms:
             platform_model, created = VideoGamePlatform.objects.get_or_create(
@@ -26,7 +32,7 @@ class DjangoGameRepository(GameRepository):
                 DjangoGameRepository.create_vendor(gop, platform_game.vendor)
 
     @staticmethod
-    def create_genres(game_model: Game, genres: list[str]):
+    def create_genres(game_model: VideoGame, genres: list[str]):
         for genre in genres:
             if genre:
                 genre_model, created = Genre.objects.get_or_create(name=genre)
@@ -45,13 +51,15 @@ class DjangoGameRepository(GameRepository):
             game_on_platform_model.save(update_fields=["vendor"])
 
     @staticmethod
-    def create_game_model(game: GameInterface, data: dict) -> tuple[Game, bool]:
+    def create_game_model(
+        game: VideoGameInterface, data: dict
+    ) -> tuple[VideoGame, bool]:
         if game.id:
-            game_model = Game.objects.all_with_orphaned().get(pk=game.id)
+            game_model = VideoGame.objects.all_with_orphaned().get(pk=game.id)
             created = False
         else:
             data.pop("id")
-            game_model, created = Game.objects.all_with_orphaned().get_or_create(
+            game_model, created = VideoGame.objects.all_with_orphaned().get_or_create(
                 name=game.name
             )
 
@@ -65,10 +73,10 @@ class DjangoGameRepository(GameRepository):
                     setattr(game_model, field, value)
 
         game_model.save(update_fields=list(data.keys()))
-        return cast(tuple[Game, bool], (game_model, created))
+        return cast(tuple[VideoGame, bool], (game_model, created))
 
     @staticmethod
-    def game_to_dict(game: GameInterface) -> dict:
+    def game_to_dict(game: VideoGameInterface) -> dict:
         data = game.to_dict()
 
         # remove complex fields from the dict -- they are being used separately
@@ -78,7 +86,7 @@ class DjangoGameRepository(GameRepository):
         return data
 
     @staticmethod
-    def create(game: GameInterface) -> tuple[Game, bool]:
+    def create(game: VideoGameInterface) -> tuple[VideoGame, bool]:
         data = DjangoGameRepository.game_to_dict(game)
 
         game_model, created = DjangoGameRepository.create_game_model(game, data)
@@ -89,12 +97,12 @@ class DjangoGameRepository(GameRepository):
             DjangoGameRepository.create_game_on_platforms(game_model, game.platforms)
 
         game_model.refresh_from_db()
-        return cast(tuple[Game, bool], (game_model, created))
+        return cast(tuple[VideoGame, bool], (game_model, created))
 
     @staticmethod
     def remove(identifier: UUID):
         try:
-            game = Game.objects.all_with_orphaned().get(id=identifier)
+            game = VideoGame.objects.all_with_orphaned().get(id=identifier)
             game.delete()
-        except Game.DoesNotExist as err:
+        except VideoGame.DoesNotExist as err:
             raise ValueError("No game with this ID") from err

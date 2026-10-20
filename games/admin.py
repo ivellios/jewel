@@ -10,14 +10,20 @@ from django.utils.formats import localize
 from django.utils.safestring import mark_safe
 
 from games.admin_views.bulk_import import bulk_import_view
-from games.models import Game, Genre, Vendor, VideoGameOnPlatform, VideoGamePlatform
+from games.models import (
+    Genre,
+    Vendor,
+    VideoGame,
+    VideoGameOnPlatform,
+    VideoGamePlatform,
+)
 from steam.utils import set_steam_game_appid
 
 # Register your models here.
 
 
 class GameOnPlatformInline(admin.TabularInline):
-    model = Game.platforms.through
+    model = VideoGame.platforms.through
     fields = [
         "platform",
         "vendor",
@@ -147,7 +153,7 @@ class GameAdmin(admin.ModelAdmin):
     def get_queryset(self, request):
         # Use all_with_orphaned to show both active and orphaned games
         return (
-            Game.objects.all_with_orphaned()
+            VideoGame.objects.all_with_orphaned()
             .annotate(
                 active_platform_count=Count(
                     "platforms_meta_data", filter=Q(platforms_meta_data__deleted=False)
@@ -173,7 +179,7 @@ class GameAdmin(admin.ModelAdmin):
         return ", ".join(sorted(vendor_names)) if vendor_names else "None"
 
     @admin.display(description="Game URL")
-    def game_url(self, obj: Game):
+    def game_url(self, obj: VideoGame):
         if obj.platforms.filter(name__iexact="Steam").exists():
             steam_gop = obj.platforms_meta_data.filter(
                 platform__name__iexact="Steam", deleted=False
@@ -263,7 +269,7 @@ class GameAdmin(admin.ModelAdmin):
         return bulk_import_view(request)
 
 
-admin.site.register(Game, GameAdmin)
+admin.site.register(VideoGame, GameAdmin)
 admin.site.register(VideoGamePlatform)
 admin.site.register(Vendor)
 admin.site.register(Genre)

@@ -7,7 +7,7 @@ from django.shortcuts import render
 from django.urls import reverse
 
 from games.forms import BulkGameImportForm, GameImportFormSet
-from games.models import Game, VideoGameOnPlatform, VideoGamePlatform
+from games.models import VideoGame, VideoGameOnPlatform, VideoGamePlatform
 
 
 def bulk_import_view(request):
@@ -23,7 +23,7 @@ def bulk_import_view(request):
                 "form": form,
                 "formset": formset,
                 "title": "Bulk Import Games",
-                "opts": Game._meta,
+                "opts": VideoGame._meta,
                 "has_change_permission": True,
             },
         )
@@ -56,7 +56,7 @@ def bulk_import_view(request):
                 "form": form,
                 "formset": formset,
                 "title": "Bulk Import Games",
-                "opts": Game._meta,
+                "opts": VideoGame._meta,
                 "has_change_permission": True,
             },
         )
@@ -140,9 +140,9 @@ def process_bulk_import(request, form, formset):
     for game_data in new_games_on_platforms:
         # Create game
         try:
-            game = Game.objects.get(name__iexact=game_data["name"])
-        except Game.DoesNotExist:
-            game = Game.objects.create(
+            game = VideoGame.objects.get(name__iexact=game_data["name"])
+        except VideoGame.DoesNotExist:
+            game = VideoGame.objects.create(
                 name=game_data["name"],
                 play_priority=game_data["play_priority"],
                 notes=game_data["notes"],
