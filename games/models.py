@@ -88,7 +88,7 @@ class CollectionItem(models.Model):
         abstract = True
 
 
-class Game(CollectionItem):
+class VideoGame(CollectionItem):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     platforms = models.ManyToManyField(
         Platform,
@@ -118,7 +118,7 @@ class Game(CollectionItem):
 
 class GameOnPlatform(models.Model):
     game = models.ForeignKey(
-        Game, on_delete=models.CASCADE, related_name="platforms_meta_data"
+        VideoGame, on_delete=models.CASCADE, related_name="platforms_meta_data"
     )
     platform = models.ForeignKey(
         Platform, on_delete=models.CASCADE, related_name="games_meta_data"
@@ -160,3 +160,8 @@ class GameOnPlatform(models.Model):
         self.deleted = False
         self.deleted_at = None
         self.save(update_fields=["deleted", "deleted_at"])
+
+
+# Temporary compatibility alias: all external imports still use `Game`.
+# Remove this alias in the packet that renames importers/serializers/admin.
+Game = VideoGame
