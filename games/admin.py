@@ -101,7 +101,7 @@ class VendorFilter(admin.SimpleListFilter):
     def lookups(self, request, model_admin):
         # Get vendors that have active GameOnPlatform relationships
         vendors = (
-            Vendor.objects.filter(gameonplatform__deleted=False)
+            Vendor.objects.filter(videogameonplatform__deleted=False)
             .distinct()
             .order_by("name")
         )
