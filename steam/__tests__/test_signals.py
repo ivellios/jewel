@@ -2,8 +2,12 @@ from unittest.mock import patch
 
 from django.test import TestCase
 
-from games.api.__tests__.factories import GameFactory, PlatformFactory, VendorFactory
-from games.models import GameOnPlatform
+from games.api.__tests__.factories import (
+    VendorFactory,
+    VideoGameFactory,
+    VideoGamePlatformFactory,
+)
+from games.models import VideoGameOnPlatform
 from games.signals import platform_added_for_game
 
 
@@ -11,10 +15,10 @@ class SteamSignalProcessingTestCase(TestCase):
     """Test Steam signal processing functionality"""
 
     def setUp(self):
-        self.steam_platform = PlatformFactory(name="Steam")
-        self.epic_platform = PlatformFactory(name="Epic Games")
+        self.steam_platform = VideoGamePlatformFactory(name="Steam")
+        self.epic_platform = VideoGamePlatformFactory(name="Epic Games")
         self.vendor = VendorFactory(name="Steam")
-        self.game = GameFactory(name="Test Game")
+        self.game = VideoGameFactory(name="Test Game")
 
     @patch("steam.signals_processors.set_steam_game_appid")
     def test_signal_calls_set_steam_game_appid_for_steam_platform(
@@ -22,7 +26,7 @@ class SteamSignalProcessingTestCase(TestCase):
     ):
         """Test that signal calls set_steam_game_appid for Steam platforms without identifier"""
         # Create GameOnPlatform for Steam without identifier
-        gop = GameOnPlatform.objects.create(
+        gop = VideoGameOnPlatform.objects.create(
             game=self.game,
             platform=self.steam_platform,
             vendor=self.vendor,
@@ -30,7 +34,7 @@ class SteamSignalProcessingTestCase(TestCase):
         )
 
         # Send the signal manually to test the receiver
-        platform_added_for_game.send(sender=GameOnPlatform, instance=gop)
+        platform_added_for_game.send(sender=VideoGameOnPlatform, instance=gop)
 
         # Verify the function was called with the GameOnPlatform instance
         # Note: It might be called more than once due to signal firing during object creation
@@ -41,7 +45,7 @@ class SteamSignalProcessingTestCase(TestCase):
     def test_signal_skips_non_steam_platforms(self, mock_set_steam_appid):
         """Test that signal skips non-Steam platforms"""
         # Create GameOnPlatform for Epic Games
-        gop = GameOnPlatform.objects.create(
+        gop = VideoGameOnPlatform.objects.create(
             game=self.game,
             platform=self.epic_platform,
             vendor=self.vendor,
@@ -49,7 +53,7 @@ class SteamSignalProcessingTestCase(TestCase):
         )
 
         # Send the signal
-        platform_added_for_game.send(sender=GameOnPlatform, instance=gop)
+        platform_added_for_game.send(sender=VideoGameOnPlatform, instance=gop)
 
         # Verify the function was NOT called
         mock_set_steam_appid.assert_not_called()
@@ -60,7 +64,7 @@ class SteamSignalProcessingTestCase(TestCase):
     ):
         """Test that signal skips Steam games that already have identifiers"""
         # Create GameOnPlatform for Steam WITH identifier
-        gop = GameOnPlatform.objects.create(
+        gop = VideoGameOnPlatform.objects.create(
             game=self.game,
             platform=self.steam_platform,
             vendor=self.vendor,
@@ -68,7 +72,7 @@ class SteamSignalProcessingTestCase(TestCase):
         )
 
         # Send the signal
-        platform_added_for_game.send(sender=GameOnPlatform, instance=gop)
+        platform_added_for_game.send(sender=VideoGameOnPlatform, instance=gop)
 
         # Verify the function was NOT called
         mock_set_steam_appid.assert_not_called()
@@ -79,26 +83,26 @@ class SteamSignalProcessingTestCase(TestCase):
     ):
         """Test that signal works with different case variations of Steam platform name"""
         # Create platforms with different case variations
-        steam_lower = PlatformFactory(name="steam")
-        steam_upper = PlatformFactory(name="STEAM")
+        steam_lower = VideoGamePlatformFactory(name="steam")
+        steam_upper = VideoGamePlatformFactory(name="STEAM")
 
         # Test lowercase
-        gop1 = GameOnPlatform.objects.create(
+        gop1 = VideoGameOnPlatform.objects.create(
             game=self.game, platform=steam_lower, vendor=self.vendor, identifier=""
         )
-        platform_added_for_game.send(sender=GameOnPlatform, instance=gop1)
+        platform_added_for_game.send(sender=VideoGameOnPlatform, instance=gop1)
         mock_set_steam_appid.assert_called_with(gop1)
 
         mock_set_steam_appid.reset_mock()
 
         # Test uppercase
-        gop2 = GameOnPlatform.objects.create(
-            game=GameFactory(name="Test Game 2"),
+        gop2 = VideoGameOnPlatform.objects.create(
+            game=VideoGameFactory(name="Test Game 2"),
             platform=steam_upper,
             vendor=self.vendor,
             identifier="",
         )
-        platform_added_for_game.send(sender=GameOnPlatform, instance=gop2)
+        platform_added_for_game.send(sender=VideoGameOnPlatform, instance=gop2)
         mock_set_steam_appid.assert_called_with(gop2)
 
     @patch("steam.signals_processors.set_steam_game_appid")
@@ -111,8 +115,8 @@ class SteamSignalProcessingTestCase(TestCase):
 
         # Create a GameOnPlatform with Steam platform and no identifier
         # This should automatically trigger our signal receiver
-        gop = GameOnPlatform.objects.create(
-            game=GameFactory(name="Auto Signal Test Game"),
+        gop = VideoGameOnPlatform.objects.create(
+            game=VideoGameFactory(name="Auto Signal Test Game"),
             platform=self.steam_platform,
             vendor=self.vendor,
             identifier="",
