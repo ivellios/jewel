@@ -52,4 +52,11 @@ Use Ruff for both linting and formatting; do not introduce Black/isort configura
 - Read nearby code and tests before editing; preserve existing API paths, response shapes, relations, and behavior unless the task requires otherwise.
 - Update factories, fixtures, serializers, admin, templates, and tests together when renaming models.
 - Keep tests focused on the changed behavior. The reviewer owns the full suite and repository-wide quality checks.
-- Do not commit, push, reset, or create a pull request unless explicitly requested.
+- Do not push or create a pull request unless explicitly requested.
+
+## Commits
+
+- After a packet passes implementation and review checks, the orchestrator may commit that packet on the dedicated branch.
+- Keep one focused commit per verified packet; do not mix unrelated or unverified changes.
+- Use the `caveman-commit` skill to generate a terse Conventional Commits message before committing.
+- Never commit secrets, generated local databases, or unrelated worktree changes.
