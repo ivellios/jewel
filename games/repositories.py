@@ -3,7 +3,7 @@ from uuid import UUID
 
 from abstract.games import GameInterface, GameOnPlatformInterface
 from abstract.repositories import GameRepository
-from games.models import Game, Genre, Platform, Vendor, VideoGameOnPlatform
+from games.models import Game, Genre, Vendor, VideoGameOnPlatform, VideoGamePlatform
 
 
 class DjangoGameRepository(GameRepository):
@@ -12,7 +12,7 @@ class DjangoGameRepository(GameRepository):
         game_model: Game, platforms: list[GameOnPlatformInterface]
     ):
         for platform_game in platforms:
-            platform_model, created = Platform.objects.get_or_create(
+            platform_model, created = VideoGamePlatform.objects.get_or_create(
                 name=platform_game.platform.name
             )
             gop, _ = VideoGameOnPlatform.objects.get_or_create(

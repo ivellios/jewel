@@ -5,7 +5,7 @@ from django.core.management import BaseCommand
 
 from tqdm import tqdm
 
-from games.models import Platform, VideoGameOnPlatform
+from games.models import VideoGameOnPlatform, VideoGamePlatform
 from steam.repositories import SteamGamesRepository
 
 
@@ -15,7 +15,7 @@ class Command(BaseCommand):
         Creates a match between the Steam App ID and the game copies that do not have an identifier set.
         """
         steam_repository = SteamGamesRepository()
-        steam_platform = Platform.objects.get(name="Steam")
+        steam_platform = VideoGamePlatform.objects.get(name="Steam")
         game_copies: Iterable[VideoGameOnPlatform] = VideoGameOnPlatform.objects.filter(
             platform=steam_platform, identifier__isnull=True
         )

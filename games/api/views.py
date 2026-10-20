@@ -5,7 +5,7 @@ from rest_framework import generics, status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from ..models import Game, Platform, Vendor, VideoGameOnPlatform
+from ..models import Game, Vendor, VideoGameOnPlatform, VideoGamePlatform
 from .filters import GameFilterSet
 from .serializers import (
     GameCreateSerializer,
@@ -19,7 +19,7 @@ from .serializers import (
 
 
 class PlatformListCreateAPIView(generics.ListCreateAPIView):
-    queryset = Platform.objects.all()
+    queryset = VideoGamePlatform.objects.all()
     serializer_class = PlatformSerializer
     permission_classes = [IsAuthenticated]
 
@@ -74,13 +74,13 @@ class GamePlatformDetailAPIView(generics.RetrieveUpdateDestroyAPIView):
     def get_object(self):
         try:
             game = Game.objects.get(id=self.kwargs["game_id"])
-            platform = Platform.objects.get(id=self.kwargs["platform_id"])
+            platform = VideoGamePlatform.objects.get(id=self.kwargs["platform_id"])
             return VideoGameOnPlatform.objects.get(
                 game=game, platform=platform, deleted=False
             )
         except (
             Game.DoesNotExist,
-            Platform.DoesNotExist,
+            VideoGamePlatform.DoesNotExist,
             VideoGameOnPlatform.DoesNotExist,
         ):
             return None

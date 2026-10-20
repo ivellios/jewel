@@ -10,7 +10,7 @@ from django.utils.formats import localize
 from django.utils.safestring import mark_safe
 
 from games.admin_views.bulk_import import bulk_import_view
-from games.models import Game, Genre, Platform, Vendor, VideoGameOnPlatform
+from games.models import Game, Genre, Vendor, VideoGameOnPlatform, VideoGamePlatform
 from steam.utils import set_steam_game_appid
 
 # Register your models here.
@@ -264,6 +264,6 @@ class GameAdmin(admin.ModelAdmin):
 
 
 admin.site.register(Game, GameAdmin)
-admin.site.register(Platform)
+admin.site.register(VideoGamePlatform)
 admin.site.register(Vendor)
 admin.site.register(Genre)

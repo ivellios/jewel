@@ -2,12 +2,12 @@ from django.utils import timezone
 
 from rest_framework import serializers
 
-from ..models import Game, Genre, Platform, Vendor, VideoGameOnPlatform
+from ..models import Game, Genre, Vendor, VideoGameOnPlatform, VideoGamePlatform
 
 
 class PlatformSerializer(serializers.ModelSerializer):
     class Meta:
-        model = Platform
+        model = VideoGamePlatform
         fields = ["id", "name"]
 
     def validate_name(self, value):
@@ -104,9 +104,9 @@ class GameCreateSerializer(serializers.ModelSerializer):
         price = validated_data.pop("price")
 
         # Get or create platform with case-insensitive lookup
-        platform = Platform.objects.filter(name__iexact=platform_name).first()
+        platform = VideoGamePlatform.objects.filter(name__iexact=platform_name).first()
         if not platform:
-            platform = Platform.objects.create(name=platform_name)
+            platform = VideoGamePlatform.objects.create(name=platform_name)
 
         # Get or create vendor with case-insensitive lookup
         vendor = Vendor.objects.filter(name__iexact=vendor_name).first()
@@ -193,7 +193,7 @@ class GamePlatformCreateSerializer(serializers.ModelSerializer):
         if not game:
             raise serializers.ValidationError("Game not found")
 
-        platform, created = Platform.objects.get_or_create(
+        platform, created = VideoGamePlatform.objects.get_or_create(
             name__iexact=platform_name, defaults={"name": platform_name}
         )
 

@@ -22,7 +22,7 @@ class Vendor(NamedModel, models.Model):
     pass
 
 
-class Platform(NamedModel, models.Model):
+class VideoGamePlatform(NamedModel, models.Model):
     pass
 
 
@@ -91,7 +91,7 @@ class CollectionItem(models.Model):
 class VideoGame(CollectionItem):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     platforms = models.ManyToManyField(
-        Platform,
+        VideoGamePlatform,
         verbose_name="Platform",
         related_name="games",
         through="VideoGameOnPlatform",
@@ -121,7 +121,7 @@ class VideoGameOnPlatform(models.Model):
         VideoGame, on_delete=models.CASCADE, related_name="platforms_meta_data"
     )
     platform = models.ForeignKey(
-        Platform, on_delete=models.CASCADE, related_name="games_meta_data"
+        VideoGamePlatform, on_delete=models.CASCADE, related_name="games_meta_data"
     )
     added = models.DateField(null=True, blank=True, default=date.today)
     identifier = models.CharField(
@@ -163,5 +163,5 @@ class VideoGameOnPlatform(models.Model):
 
 
 # Temporary compatibility alias: all external imports still use `Game`.
-# Remove this alias in the packet that renames importers/serializers/admin.
+# Remove this alias in packets that rename importers/serializers/admin.
 Game = VideoGame

@@ -7,7 +7,7 @@ from django.shortcuts import render
 from django.urls import reverse
 
 from games.forms import BulkGameImportForm, GameImportFormSet
-from games.models import Game, Platform, VideoGameOnPlatform
+from games.models import Game, VideoGameOnPlatform, VideoGamePlatform
 
 
 def bulk_import_view(request):
@@ -38,8 +38,8 @@ def bulk_import_view(request):
         global_platform = None
         if global_platform_id:
             try:
-                global_platform = Platform.objects.get(id=global_platform_id)
-            except Platform.DoesNotExist:
+                global_platform = VideoGamePlatform.objects.get(id=global_platform_id)
+            except VideoGamePlatform.DoesNotExist:
                 global_platform = None
 
         formset = GameImportFormSet(  # type: ignore[call-arg]  # Custom formset accepts it.
