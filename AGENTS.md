@@ -6,18 +6,27 @@
 - Install/sync dependencies with `uv sync --extra dev`.
 - Tests use `jewel.settings_tests` from `pytest.ini` and SQLite by default.
 
-## Minimum checks for an implementation packet
+## Check ownership
 
-Run only the smallest relevant checks for the files changed:
+Implementers run only focused tests for their packet:
 
 ```shell
-uv run python manage.py check
 uv run pytest -q path/to/relevant_test.py
-uv run ruff check path/to/changed/files
-uv run ruff format --check path/to/changed/files
 ```
 
-Use `uv run pytest -q` for the full suite when the packet affects shared behavior. Test files are discovered as `tests.py`, `test_*.py`, and `*_tests.py`.
+Use `manage.py check` in the implementation packet only when changing models,
+admin, URLs, settings, or Django wiring. Migration-state checks belong to the
+reviewer for model/migration packets. Test files are discovered as `tests.py`,
+`test_*.py`, and `*_tests.py`.
+
+Reviewers run the relevant pre-commit hooks and broader checks. Prefer:
+
+```shell
+prek run --files path/to/changed/files
+```
+
+The orchestrator does not repeat reviewer checks unless files changed afterward
+or a result is ambiguous.
 
 ## Repository-wide checks
 
@@ -36,7 +45,8 @@ uv run ruff format --check games csv_importer steam abstract jewel
 uv run mypy --config-file pyproject.toml games csv_importer steam abstract jewel
 ```
 
-Use Ruff for both linting and formatting; do not introduce Black/isort configuration or run unrelated formatters.
+Use the repository's `prek` Ruff hooks for linting and formatting; do not
+introduce Black/isort configuration or run unrelated formatters.
 
 ## Django and migrations
 
