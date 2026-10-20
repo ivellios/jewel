@@ -18,7 +18,7 @@ def bulk_import_view(request):
         formset = GameImportFormSet()
         return render(
             request,
-            "admin/games/game/bulk_import.html",
+            "admin/games/videogame/bulk_import.html",
             {
                 "form": form,
                 "formset": formset,
@@ -51,7 +51,7 @@ def bulk_import_view(request):
         # Re-render form with errors
         return render(
             request,
-            "admin/games/game/bulk_import.html",
+            "admin/games/videogame/bulk_import.html",
             {
                 "form": form,
                 "formset": formset,
