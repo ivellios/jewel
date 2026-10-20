@@ -8,13 +8,13 @@ from django.utils import timezone
 from games.admin import GameAdmin
 from games.admin_views.bulk_import import bulk_import_view, process_bulk_import
 from games.api.__tests__.factories import (
-    GameFactory,
-    PlatformFactory,
     UserFactory,
     VendorFactory,
+    VideoGameFactory,
+    VideoGamePlatformFactory,
 )
 from games.forms import BulkGameImportForm, GameImportFormSet
-from games.models import Game, GameOnPlatform
+from games.models import VideoGame, VideoGameOnPlatform
 
 
 def add_messages_to_request(request):
@@ -28,11 +28,11 @@ class BulkGameImportAdminTestCase(TestCase):
     def setUp(self):
         self.factory = RequestFactory()
         self.site = AdminSite()
-        self.admin = GameAdmin(Game, self.site)
+        self.admin = GameAdmin(VideoGame, self.site)
         self.user = UserFactory()
         self.vendor = VendorFactory(name="Humble Bundle")
-        self.platform_steam = PlatformFactory(name="Steam")
-        self.platform_epic = PlatformFactory(name="Epic Games")
+        self.platform_steam = VideoGamePlatformFactory(name="Steam")
+        self.platform_epic = VideoGamePlatformFactory(name="Epic Games")
 
     def test_bulk_import_view_get_renders_form(self):
         """Test that GET request renders the bulk import form"""
@@ -73,15 +73,15 @@ class BulkGameImportAdminTestCase(TestCase):
         self.admin.bulk_import_games(request)
 
         # Check games were created
-        self.assertTrue(Game.objects.filter(name="New Game 1").exists())
-        self.assertTrue(Game.objects.filter(name="New Game 2").exists())
+        self.assertTrue(VideoGame.objects.filter(name="New Game 1").exists())
+        self.assertTrue(VideoGame.objects.filter(name="New Game 2").exists())
 
-        # Check GameOnPlatform entries with correct data
-        game1 = Game.objects.get(name="New Game 1")
-        game2 = Game.objects.get(name="New Game 2")
+        # Check VideoGameOnPlatform entries with correct data
+        game1 = VideoGame.objects.get(name="New Game 1")
+        game2 = VideoGame.objects.get(name="New Game 2")
 
-        gop1 = GameOnPlatform.objects.get(game=game1)
-        gop2 = GameOnPlatform.objects.get(game=game2)
+        gop1 = VideoGameOnPlatform.objects.get(game=game1)
+        gop2 = VideoGameOnPlatform.objects.get(game=game2)
 
         # Price should be split evenly: 29.99 / 2 = 14.995 -> 15.00
         expected_price = Decimal("15.00")
@@ -98,7 +98,7 @@ class BulkGameImportAdminTestCase(TestCase):
     def test_bulk_import_detects_duplicates(self):
         """Test that duplicate games are detected and excluded"""
         # Create existing game
-        first_game = GameFactory(name="Existing Game")
+        first_game = VideoGameFactory(name="Existing Game")
 
         request = self.factory.post(
             "/admin/games/game/bulk_import/",
@@ -122,12 +122,12 @@ class BulkGameImportAdminTestCase(TestCase):
         self.admin.bulk_import_games(request)
 
         # Only one new game should be created
-        new_games = Game.objects.filter(name="New Game")
+        new_games = VideoGame.objects.filter(name="New Game")
         self.assertEqual(new_games.count(), 1)
 
         # Price should be the full bundle price (no split for duplicates)
         new_game = new_games.first()
-        gop = GameOnPlatform.objects.get(game=new_game)
+        gop = VideoGameOnPlatform.objects.get(game=new_game)
         self.assertEqual(gop.price, Decimal("20.00"))
 
     def test_bulk_import_global_platform_fallback(self):
@@ -157,17 +157,17 @@ class BulkGameImportAdminTestCase(TestCase):
         self.admin.bulk_import_games(request)
 
         # Game with specific platform should keep its Epic platform
-        game1 = Game.objects.get(name="Game with specific platform")
-        gop1 = GameOnPlatform.objects.get(game=game1)
+        game1 = VideoGame.objects.get(name="Game with specific platform")
+        gop1 = VideoGameOnPlatform.objects.get(game=game1)
         self.assertEqual(gop1.platform, self.platform_epic)
 
         # Games without platform should use Steam fallback
-        game2 = Game.objects.get(name="Game without platform")
-        gop2 = GameOnPlatform.objects.get(game=game2)
+        game2 = VideoGame.objects.get(name="Game without platform")
+        gop2 = VideoGameOnPlatform.objects.get(game=game2)
         self.assertEqual(gop2.platform, self.platform_steam)
 
-        game3 = Game.objects.get(name="Another game without platform")
-        gop3 = GameOnPlatform.objects.get(game=game3)
+        game3 = VideoGame.objects.get(name="Another game without platform")
+        gop3 = VideoGameOnPlatform.objects.get(game=game3)
         self.assertEqual(gop3.platform, self.platform_steam)
 
     def test_bulk_import_quick_input_field(self):
@@ -192,14 +192,14 @@ class BulkGameImportAdminTestCase(TestCase):
         self.admin.bulk_import_games(request)
 
         # All three games should be created
-        self.assertTrue(Game.objects.filter(name="Quick Game 1").exists())
-        self.assertTrue(Game.objects.filter(name="Quick Game 2").exists())
-        self.assertTrue(Game.objects.filter(name="Quick Game 3").exists())
+        self.assertTrue(VideoGame.objects.filter(name="Quick Game 1").exists())
+        self.assertTrue(VideoGame.objects.filter(name="Quick Game 2").exists())
+        self.assertTrue(VideoGame.objects.filter(name="Quick Game 3").exists())
 
         # Price should be split evenly: 45.00 / 3 = 15.00
         for game_name in ["Quick Game 1", "Quick Game 2", "Quick Game 3"]:
-            game = Game.objects.get(name=game_name)
-            gop = GameOnPlatform.objects.get(game=game)
+            game = VideoGame.objects.get(name=game_name)
+            gop = VideoGameOnPlatform.objects.get(game=game)
             self.assertEqual(gop.price, Decimal("15.00"))
             self.assertEqual(gop.platform, self.platform_steam)
 
@@ -228,19 +228,19 @@ class BulkGameImportAdminTestCase(TestCase):
         self.admin.bulk_import_games(request)
 
         # All games should be created
-        self.assertEqual(Game.objects.count(), 3)
+        self.assertEqual(VideoGame.objects.count(), 3)
 
         # Price should be split evenly: 60.00 / 3 = 20.00
         # Quick games should use global platform, detailed game should use its specific platform
         for game_name in ["Quick Game 1", "Quick Game 2"]:
-            game = Game.objects.get(name=game_name)
-            gop = GameOnPlatform.objects.get(game=game)
+            game = VideoGame.objects.get(name=game_name)
+            gop = VideoGameOnPlatform.objects.get(game=game)
             self.assertEqual(gop.price, Decimal("20.00"))
             self.assertEqual(gop.platform, self.platform_steam)  # From global_platform
 
         # Detailed game should keep its specific platform (Epic)
-        detailed_game = Game.objects.get(name="Detailed Game")
-        detailed_gop = GameOnPlatform.objects.get(game=detailed_game)
+        detailed_game = VideoGame.objects.get(name="Detailed Game")
+        detailed_gop = VideoGameOnPlatform.objects.get(game=detailed_game)
         self.assertEqual(detailed_gop.price, Decimal("20.00"))
         self.assertEqual(detailed_gop.platform, self.platform_epic)  # Specific platform
 
@@ -270,14 +270,14 @@ class BulkGameImportAdminTestCase(TestCase):
         self.admin.bulk_import_games(request)
 
         # Only 2 games should be created (empty form ignored)
-        self.assertEqual(Game.objects.count(), 2)
-        self.assertTrue(Game.objects.filter(name="Valid Game").exists())
-        self.assertTrue(Game.objects.filter(name="Another Valid Game").exists())
+        self.assertEqual(VideoGame.objects.count(), 2)
+        self.assertTrue(VideoGame.objects.filter(name="Valid Game").exists())
+        self.assertTrue(VideoGame.objects.filter(name="Another Valid Game").exists())
 
         # Price should be split between 2 games: 20.00 / 2 = 10.00
         for game_name in ["Valid Game", "Another Valid Game"]:
-            game = Game.objects.get(name=game_name)
-            gop = GameOnPlatform.objects.get(game=game)
+            game = VideoGame.objects.get(name=game_name)
+            gop = VideoGameOnPlatform.objects.get(game=game)
             self.assertEqual(gop.price, Decimal("10.00"))
 
     def test_bulk_import_validation_errors(self):
@@ -303,7 +303,7 @@ class BulkGameImportAdminTestCase(TestCase):
         # Form should have errors
         self.assertContains(response, "This field is required")
         # No games should be created
-        self.assertEqual(Game.objects.count(), 0)
+        self.assertEqual(VideoGame.objects.count(), 0)
 
     def test_bulk_import_quick_games_requires_global_platform(self):
         """Test that quick games requires global platform override"""
@@ -330,13 +330,13 @@ class BulkGameImportAdminTestCase(TestCase):
             response, "Default Platform is required when using quick games input"
         )
         # No games should be created
-        self.assertEqual(Game.objects.count(), 0)
+        self.assertEqual(VideoGame.objects.count(), 0)
 
     def test_bulk_import_duplicate_exclusion_from_price_split(self):
         """Test that duplicates are properly excluded from price calculations"""
         # Create existing games
-        g1 = GameFactory(name="Existing Game 1")
-        g2 = GameFactory(name="Existing Game 2")
+        g1 = VideoGameFactory(name="Existing Game 1")
+        g2 = VideoGameFactory(name="Existing Game 2")
 
         request = self.factory.post(
             "/admin/games/game/bulk_import/",
@@ -364,12 +364,12 @@ class BulkGameImportAdminTestCase(TestCase):
         self.admin.bulk_import_games(request)
 
         # Only 2 new games should be created
-        new_game1 = Game.objects.get(name="New Game 1")
-        new_game2 = Game.objects.get(name="New Game 2")
+        new_game1 = VideoGame.objects.get(name="New Game 1")
+        new_game2 = VideoGame.objects.get(name="New Game 2")
 
         # Price should be split only between new games: 30.00 / 2 = 15.00
-        gop1 = GameOnPlatform.objects.get(game=new_game1)
-        gop2 = GameOnPlatform.objects.get(game=new_game2)
+        gop1 = VideoGameOnPlatform.objects.get(game=new_game1)
+        gop2 = VideoGameOnPlatform.objects.get(game=new_game2)
 
         self.assertEqual(gop1.price, Decimal("15.00"))
         self.assertEqual(gop2.price, Decimal("15.00"))
@@ -410,14 +410,14 @@ class BulkGameImportAdminTestCase(TestCase):
         self.admin.bulk_import_games(request)
 
         # All games should be created
-        self.assertTrue(Game.objects.filter(name="Free Game 1").exists())
-        self.assertTrue(Game.objects.filter(name="Free Game 2").exists())
-        self.assertTrue(Game.objects.filter(name="Another Free Game").exists())
+        self.assertTrue(VideoGame.objects.filter(name="Free Game 1").exists())
+        self.assertTrue(VideoGame.objects.filter(name="Free Game 2").exists())
+        self.assertTrue(VideoGame.objects.filter(name="Another Free Game").exists())
 
         # All games should have price = 0.00
         for game_name in ["Free Game 1", "Free Game 2", "Another Free Game"]:
-            game = Game.objects.get(name=game_name)
-            gop = GameOnPlatform.objects.get(game=game)
+            game = VideoGame.objects.get(name=game_name)
+            gop = VideoGameOnPlatform.objects.get(game=game)
             self.assertEqual(gop.price, Decimal("0.00"))
             self.assertEqual(gop.platform, self.platform_steam)
 
@@ -442,8 +442,8 @@ class BulkImportViewTestCase(TestCase):
         self.factory = RequestFactory()
         self.user = UserFactory()
         self.vendor = VendorFactory(name="Test Vendor")
-        self.platform_steam = PlatformFactory(name="Steam")
-        self.platform_epic = PlatformFactory(name="Epic Games")
+        self.platform_steam = VideoGamePlatformFactory(name="Steam")
+        self.platform_epic = VideoGamePlatformFactory(name="Epic Games")
 
     def test_bulk_import_view_get_renders_form(self):
         """Test that GET request renders the bulk import form"""
@@ -483,8 +483,8 @@ class BulkImportViewTestCase(TestCase):
         self.assertEqual(response.status_code, 302)
 
         # Verify games were created
-        self.assertTrue(Game.objects.filter(name="Test Game 1").exists())
-        self.assertTrue(Game.objects.filter(name="Test Game 2").exists())
+        self.assertTrue(VideoGame.objects.filter(name="Test Game 1").exists())
+        self.assertTrue(VideoGame.objects.filter(name="Test Game 2").exists())
 
     def test_bulk_import_view_post_invalid_data(self):
         """Test POST with invalid data re-renders form with errors"""
@@ -509,7 +509,7 @@ class BulkImportViewTestCase(TestCase):
         self.assertContains(response, "This field is required")
 
         # No games should be created
-        self.assertEqual(Game.objects.count(), 0)
+        self.assertEqual(VideoGame.objects.count(), 0)
 
     def test_process_bulk_import_creates_games_from_quick_input(self):
         """Test process_bulk_import creates games from quick input field"""
@@ -544,12 +544,12 @@ class BulkImportViewTestCase(TestCase):
         self.assertEqual(response.status_code, 302)
 
         # Verify games were created
-        game1 = Game.objects.get(name="Quick Game 1")
-        game2 = Game.objects.get(name="Quick Game 2")
+        game1 = VideoGame.objects.get(name="Quick Game 1")
+        game2 = VideoGame.objects.get(name="Quick Game 2")
 
         # Verify platform relationships
-        gop1 = GameOnPlatform.objects.get(game=game1)
-        gop2 = GameOnPlatform.objects.get(game=game2)
+        gop1 = VideoGameOnPlatform.objects.get(game=game1)
+        gop2 = VideoGameOnPlatform.objects.get(game=game2)
 
         self.assertEqual(gop1.platform, self.platform_steam)
         self.assertEqual(gop1.vendor, self.vendor)
@@ -598,15 +598,15 @@ class BulkImportViewTestCase(TestCase):
         self.assertEqual(response.status_code, 302)
 
         # Verify games were created with correct attributes
-        game1 = Game.objects.get(name="Formset Game 1")
-        game2 = Game.objects.get(name="Formset Game 2")
+        game1 = VideoGame.objects.get(name="Formset Game 1")
+        game2 = VideoGame.objects.get(name="Formset Game 2")
 
         self.assertEqual(game1.play_priority, 8)
         self.assertEqual(game2.play_priority, 5)
 
         # Verify platform relationships
-        gop1 = GameOnPlatform.objects.get(game=game1)
-        gop2 = GameOnPlatform.objects.get(game=game2)
+        gop1 = VideoGameOnPlatform.objects.get(game=game1)
+        gop2 = VideoGameOnPlatform.objects.get(game=game2)
 
         self.assertEqual(gop1.platform, self.platform_steam)
         self.assertEqual(gop2.platform, self.platform_epic)
@@ -617,7 +617,7 @@ class BulkImportViewTestCase(TestCase):
         """Test process_bulk_import properly handles duplicate games"""
 
         # Create existing game
-        g1 = GameFactory(name="Existing Game")
+        g1 = VideoGameFactory(name="Existing Game")
 
         form_data = {
             "vendor": self.vendor.id,
@@ -651,13 +651,13 @@ class BulkImportViewTestCase(TestCase):
 
         # Only new game should be created
         self.assertEqual(
-            Game.objects.filter(name="Existing Game").count(), 1
+            VideoGame.objects.filter(name="Existing Game").count(), 1
         )  # Still just 1
-        self.assertTrue(Game.objects.filter(name="New Game").exists())
+        self.assertTrue(VideoGame.objects.filter(name="New Game").exists())
 
         # New game should get full price (not split with duplicate)
-        new_game = Game.objects.get(name="New Game")
-        gop = GameOnPlatform.objects.get(game=new_game)
+        new_game = VideoGame.objects.get(name="New Game")
+        gop = VideoGameOnPlatform.objects.get(game=new_game)
         self.assertEqual(gop.price, Decimal("20.00"))  # Full price, not split
 
     def test_process_bulk_import_mixed_input_sources(self):
@@ -697,29 +697,32 @@ class BulkImportViewTestCase(TestCase):
         self.assertEqual(response.status_code, 302)
 
         # All 3 games should be created
-        self.assertEqual(Game.objects.count(), 3)
+        self.assertEqual(VideoGame.objects.count(), 3)
 
         # Verify platform assignments
-        quick_game1 = Game.objects.get(name="Quick Game 1")
-        quick_game2 = Game.objects.get(name="Quick Game 2")
-        detailed_game = Game.objects.get(name="Detailed Game")
+        quick_game1 = VideoGame.objects.get(name="Quick Game 1")
+        quick_game2 = VideoGame.objects.get(name="Quick Game 2")
+        detailed_game = VideoGame.objects.get(name="Detailed Game")
 
         # Quick games use global platform
         self.assertEqual(
-            GameOnPlatform.objects.get(game=quick_game1).platform, self.platform_steam
+            VideoGameOnPlatform.objects.get(game=quick_game1).platform,
+            self.platform_steam,
         )
         self.assertEqual(
-            GameOnPlatform.objects.get(game=quick_game2).platform, self.platform_steam
+            VideoGameOnPlatform.objects.get(game=quick_game2).platform,
+            self.platform_steam,
         )
 
         # Detailed game uses its specific platform
         self.assertEqual(
-            GameOnPlatform.objects.get(game=detailed_game).platform, self.platform_epic
+            VideoGameOnPlatform.objects.get(game=detailed_game).platform,
+            self.platform_epic,
         )
 
         # Price should be split equally across all 3 games
         for game in [quick_game1, quick_game2, detailed_game]:
-            gop = GameOnPlatform.objects.get(game=game)
+            gop = VideoGameOnPlatform.objects.get(game=game)
             self.assertEqual(gop.price, Decimal("13.33"))  # 40.00 / 3 games
 
     def test_process_bulk_import_free_bundle(self):
@@ -757,18 +760,18 @@ class BulkImportViewTestCase(TestCase):
 
         # Verify games created with zero price
         for game_name in ["Free Game 1", "Free Game 2"]:
-            game = Game.objects.get(name=game_name)
-            gop = GameOnPlatform.objects.get(game=game)
+            game = VideoGame.objects.get(name=game_name)
+            gop = VideoGameOnPlatform.objects.get(game=game)
             self.assertEqual(gop.price, Decimal("0.00"))
 
     def test_process_bulk_import_no_new_games_warning(self):
         """Test process_bulk_import shows warning when all games are duplicates"""
 
         # Create existing games
-        g1 = GameFactory(name="Game 1", platforms=False)
-        g2 = GameFactory(name="Game 2", platforms=False)
+        g1 = VideoGameFactory(name="Game 1", platforms=False)
+        g2 = VideoGameFactory(name="Game 2", platforms=False)
 
-        p = PlatformFactory()
+        p = VideoGamePlatformFactory()
 
         g1.platforms.add(p)
         g2.platforms.add(p)
@@ -804,7 +807,7 @@ class BulkImportViewTestCase(TestCase):
         self.assertEqual(response.status_code, 302)
 
         # No new games should be created
-        self.assertEqual(Game.objects.count(), 2)  # Only the existing ones
+        self.assertEqual(VideoGame.objects.count(), 2)  # Only the existing ones
 
     def test_bulk_import_view_form_has_default_date(self):
         """Test that GET request renders form with today's date as default"""
@@ -846,9 +849,9 @@ class BulkImportViewTestCase(TestCase):
         self.assertEqual(response.status_code, 302)
 
         # All games should have the global notes
-        quick_game1 = Game.objects.get(name="Quick Game 1")
-        quick_game2 = Game.objects.get(name="Quick Game 2")
-        detailed_game = Game.objects.get(name="Detailed Game")
+        quick_game1 = VideoGame.objects.get(name="Quick Game 1")
+        quick_game2 = VideoGame.objects.get(name="Quick Game 2")
+        detailed_game = VideoGame.objects.get(name="Detailed Game")
 
         self.assertEqual(quick_game1.notes, "These are global notes for all games")
         self.assertEqual(quick_game2.notes, "These are global notes for all games")
@@ -883,18 +886,20 @@ class BulkImportViewTestCase(TestCase):
         self.assertEqual(response.status_code, 302)
 
         # Quick game should use global notes
-        quick_game = Game.objects.get(name="Quick Game")
+        quick_game = VideoGame.objects.get(name="Quick Game")
         self.assertEqual(quick_game.notes, "These are global notes")
 
         # Game with individual notes should use individual notes (override)
-        game_with_individual = Game.objects.get(name="Game With Individual Notes")
+        game_with_individual = VideoGame.objects.get(name="Game With Individual Notes")
         self.assertEqual(
             game_with_individual.notes,
             "These are individual notes that should override",
         )
 
         # Game without individual notes should use global notes
-        game_without_individual = Game.objects.get(name="Game Without Individual Notes")
+        game_without_individual = VideoGame.objects.get(
+            name="Game Without Individual Notes"
+        )
         self.assertEqual(game_without_individual.notes, "These are global notes")
 
     def test_bulk_import_mixed_notes_scenarios(self):
@@ -929,15 +934,15 @@ class BulkImportViewTestCase(TestCase):
         self.assertEqual(response.status_code, 302)
 
         # Game with individual notes should use them
-        game_override = Game.objects.get(name="Game With Override")
+        game_override = VideoGame.objects.get(name="Game With Override")
         self.assertEqual(game_override.notes, "Specific notes for this game")
 
         # Game with empty individual notes should use global notes
-        game_using_global = Game.objects.get(name="Game Using Global")
+        game_using_global = VideoGame.objects.get(name="Game Using Global")
         self.assertEqual(game_using_global.notes, "Global notes for all")
 
         # Game with whitespace-only individual notes should use global notes
-        game_empty_individual = Game.objects.get(
+        game_empty_individual = VideoGame.objects.get(
             name="Game With Empty Individual Notes"
         )
         self.assertEqual(game_empty_individual.notes, "Global notes for all")
@@ -967,7 +972,7 @@ class BulkImportViewTestCase(TestCase):
 
         # All quick games should have global notes
         for game_name in ["Quick Game 1", "Quick Game 2", "Quick Game 3"]:
-            game = Game.objects.get(name=game_name)
+            game = VideoGame.objects.get(name=game_name)
             self.assertEqual(game.notes, "Notes for quick games")
 
     def test_bulk_import_empty_notes_fields(self):
@@ -997,8 +1002,8 @@ class BulkImportViewTestCase(TestCase):
         self.assertEqual(response.status_code, 302)
 
         # Both games should have no notes (None or empty string)
-        quick_game = Game.objects.get(name="Quick Game")
-        detailed_game = Game.objects.get(name="Detailed Game")
+        quick_game = VideoGame.objects.get(name="Quick Game")
+        detailed_game = VideoGame.objects.get(name="Detailed Game")
 
         # Should be None or empty string, both are acceptable
         self.assertIn(quick_game.notes, [None, ""])

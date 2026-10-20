@@ -126,7 +126,7 @@ def process_bulk_import(request, form, formset):
 
     if not new_games_on_platforms:
         messages.warning(request, "No new games to import - all games already exist.")
-        return HttpResponseRedirect(reverse("admin:games_game_changelist"))
+        return HttpResponseRedirect(reverse("admin:games_videogame_changelist"))
 
     # Calculate price per game (excluding duplicates)
     if bundle_price == 0 or len(new_games_on_platforms) == 0:
@@ -169,4 +169,4 @@ def process_bulk_import(request, form, formset):
             success_msg += f" (and {len(duplicates) - 5} more)"
 
     messages.success(request, success_msg)
-    return HttpResponseRedirect(reverse("admin:games_game_changelist"))
+    return HttpResponseRedirect(reverse("admin:games_videogame_changelist"))
