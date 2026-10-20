@@ -10,7 +10,7 @@ from django.utils.formats import localize
 from django.utils.safestring import mark_safe
 
 from games.admin_views.bulk_import import bulk_import_view
-from games.models import Game, GameOnPlatform, Genre, Platform, Vendor
+from games.models import Game, Genre, Platform, Vendor, VideoGameOnPlatform
 from steam.utils import set_steam_game_appid
 
 # Register your models here.
@@ -224,9 +224,9 @@ class GameAdmin(admin.ModelAdmin):
     def restore_all_platforms(self, request, queryset):
         count = 0
         for game in queryset:
-            restored = GameOnPlatform.objects.filter(game=game, deleted=True).update(
-                deleted=False, deleted_at=None
-            )
+            restored = VideoGameOnPlatform.objects.filter(
+                game=game, deleted=True
+            ).update(deleted=False, deleted_at=None)
             count += restored
         self.message_user(request, f"Restored {count} platform relationships.")
 
@@ -234,7 +234,7 @@ class GameAdmin(admin.ModelAdmin):
     def make_orphaned(self, request, queryset):
         count = 0
         for game in queryset:
-            platforms = GameOnPlatform.objects.filter(game=game, deleted=False)
+            platforms = VideoGameOnPlatform.objects.filter(game=game, deleted=False)
             for platform in platforms:
                 platform.soft_delete()
                 count += 1

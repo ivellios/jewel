@@ -1,8 +1,8 @@
-from games.models import GameOnPlatform
+from games.models import VideoGameOnPlatform
 from steam.models import SteamGame
 
 
-def set_steam_game_appid(gop: GameOnPlatform) -> bool | None:
+def set_steam_game_appid(gop: VideoGameOnPlatform) -> bool | None:
     """
     Tries to find the best matching Steam game for a newly added GameOnPlatform instance.
     If a match is found, it sets the identifier field to the Steam app ID.

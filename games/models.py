@@ -94,7 +94,7 @@ class VideoGame(CollectionItem):
         Platform,
         verbose_name="Platform",
         related_name="games",
-        through="GameOnPlatform",
+        through="VideoGameOnPlatform",
         blank=True,
     )
     controller_support = models.BooleanField(
@@ -116,7 +116,7 @@ class VideoGame(CollectionItem):
             pass
 
 
-class GameOnPlatform(models.Model):
+class VideoGameOnPlatform(models.Model):
     game = models.ForeignKey(
         VideoGame, on_delete=models.CASCADE, related_name="platforms_meta_data"
     )

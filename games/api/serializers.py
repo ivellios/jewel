@@ -2,7 +2,7 @@ from django.utils import timezone
 
 from rest_framework import serializers
 
-from ..models import Game, GameOnPlatform, Genre, Platform, Vendor
+from ..models import Game, Genre, Platform, Vendor, VideoGameOnPlatform
 
 
 class PlatformSerializer(serializers.ModelSerializer):
@@ -32,17 +32,17 @@ class VendorSerializer(serializers.ModelSerializer):
         return value.strip() if value else value
 
 
-class GameOnPlatformSerializer(serializers.ModelSerializer):
+class VideoGameOnPlatformSerializer(serializers.ModelSerializer):
     platform = PlatformSerializer(read_only=True)
     vendor = VendorSerializer(read_only=True)
 
     class Meta:
-        model = GameOnPlatform
+        model = VideoGameOnPlatform
         fields = ["platform", "added", "identifier", "price", "vendor"]
 
 
 class GameSerializer(serializers.ModelSerializer):
-    platforms_meta_data = GameOnPlatformSerializer(many=True, read_only=True)
+    platforms_meta_data = VideoGameOnPlatformSerializer(many=True, read_only=True)
     genres = GenreSerializer(many=True, read_only=True)
 
     class Meta:
@@ -116,8 +116,8 @@ class GameCreateSerializer(serializers.ModelSerializer):
         # Create the game
         game = Game.objects.create(**validated_data)
 
-        # Create the GameOnPlatform relationship
-        GameOnPlatform.objects.create(
+        # Create the VideoGameOnPlatform relationship
+        VideoGameOnPlatform.objects.create(
             game=game,
             platform=platform,
             vendor=vendor,
@@ -153,7 +153,7 @@ class GamePlatformUpdateSerializer(serializers.ModelSerializer):
     vendor_name = serializers.CharField(max_length=100, write_only=True, required=False)
 
     class Meta:
-        model = GameOnPlatform
+        model = VideoGameOnPlatform
         fields = ["added", "identifier", "price", "vendor_name"]
 
     def validate_vendor_name(self, value):
@@ -176,7 +176,7 @@ class GamePlatformCreateSerializer(serializers.ModelSerializer):
     vendor_name = serializers.CharField(max_length=100, write_only=True, required=False)
 
     class Meta:
-        model = GameOnPlatform
+        model = VideoGameOnPlatform
         fields = ["platform_name", "vendor_name", "added", "identifier", "price"]
 
     def validate_platform_name(self, value):
@@ -197,7 +197,7 @@ class GamePlatformCreateSerializer(serializers.ModelSerializer):
             name__iexact=platform_name, defaults={"name": platform_name}
         )
 
-        if GameOnPlatform.objects.filter(game=game, platform=platform).exists():
+        if VideoGameOnPlatform.objects.filter(game=game, platform=platform).exists():
             raise serializers.ValidationError(
                 "This game already exists on this platform"
             )
@@ -208,7 +208,7 @@ class GamePlatformCreateSerializer(serializers.ModelSerializer):
                 name__iexact=vendor_name, defaults={"name": vendor_name}
             )
 
-        return GameOnPlatform.objects.create(
+        return VideoGameOnPlatform.objects.create(
             game=game,
             platform=platform,
             vendor=vendor,

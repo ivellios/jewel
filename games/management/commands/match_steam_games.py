@@ -5,7 +5,7 @@ from django.core.management import BaseCommand
 
 from tqdm import tqdm
 
-from games.models import GameOnPlatform, Platform
+from games.models import Platform, VideoGameOnPlatform
 from steam.repositories import SteamGamesRepository
 
 
@@ -16,7 +16,7 @@ class Command(BaseCommand):
         """
         steam_repository = SteamGamesRepository()
         steam_platform = Platform.objects.get(name="Steam")
-        game_copies: Iterable[GameOnPlatform] = GameOnPlatform.objects.filter(
+        game_copies: Iterable[VideoGameOnPlatform] = VideoGameOnPlatform.objects.filter(
             platform=steam_platform, identifier__isnull=True
         )
         fuzzy_threshold = 95

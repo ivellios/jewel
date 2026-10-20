@@ -3,7 +3,7 @@ from uuid import UUID
 
 from abstract.games import GameInterface, GameOnPlatformInterface
 from abstract.repositories import GameRepository
-from games.models import Game, GameOnPlatform, Genre, Platform, Vendor
+from games.models import Game, Genre, Platform, Vendor, VideoGameOnPlatform
 
 
 class DjangoGameRepository(GameRepository):
@@ -15,7 +15,7 @@ class DjangoGameRepository(GameRepository):
             platform_model, created = Platform.objects.get_or_create(
                 name=platform_game.platform.name
             )
-            gop, _ = GameOnPlatform.objects.get_or_create(
+            gop, _ = VideoGameOnPlatform.objects.get_or_create(
                 platform=platform_model,
                 game=game_model,
                 added=platform_game.added,
@@ -34,7 +34,7 @@ class DjangoGameRepository(GameRepository):
                     game_model.genres.add(genre_model)
 
     @staticmethod
-    def create_vendor(game_on_platform_model: GameOnPlatform, vendor: str):
+    def create_vendor(game_on_platform_model: VideoGameOnPlatform, vendor: str):
         vendor_obj, created = Vendor.objects.get_or_create(name=vendor)
         if (
             not game_on_platform_model.vendor

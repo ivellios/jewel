@@ -7,7 +7,7 @@ from django.shortcuts import render
 from django.urls import reverse
 
 from games.forms import BulkGameImportForm, GameImportFormSet
-from games.models import Game, GameOnPlatform, Platform
+from games.models import Game, Platform, VideoGameOnPlatform
 
 
 def bulk_import_view(request):
@@ -117,7 +117,7 @@ def process_bulk_import(request, form, formset):
     # Check for duplicates
     new_games_on_platforms = []
     for game_data in games_to_import:
-        if GameOnPlatform.objects.filter(
+        if VideoGameOnPlatform.objects.filter(
             game__name__iexact=game_data["name"], platform_id=game_data["platform"]
         ).exists():
             duplicates.append(game_data["name"])
@@ -149,7 +149,7 @@ def process_bulk_import(request, form, formset):
             )
 
         # Create platform relationship
-        GameOnPlatform.objects.create(
+        VideoGameOnPlatform.objects.create(
             game=game,
             platform=game_data["platform"],
             vendor=vendor,

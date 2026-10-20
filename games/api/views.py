@@ -5,7 +5,7 @@ from rest_framework import generics, status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from ..models import Game, GameOnPlatform, Platform, Vendor
+from ..models import Game, Platform, Vendor, VideoGameOnPlatform
 from .filters import GameFilterSet
 from .serializers import (
     GameCreateSerializer,
@@ -75,10 +75,14 @@ class GamePlatformDetailAPIView(generics.RetrieveUpdateDestroyAPIView):
         try:
             game = Game.objects.get(id=self.kwargs["game_id"])
             platform = Platform.objects.get(id=self.kwargs["platform_id"])
-            return GameOnPlatform.objects.get(
+            return VideoGameOnPlatform.objects.get(
                 game=game, platform=platform, deleted=False
             )
-        except (Game.DoesNotExist, Platform.DoesNotExist, GameOnPlatform.DoesNotExist):
+        except (
+            Game.DoesNotExist,
+            Platform.DoesNotExist,
+            VideoGameOnPlatform.DoesNotExist,
+        ):
             return None
 
     def put(self, request, game_id, platform_id):
