@@ -57,33 +57,11 @@ class GameManager(models.Manager):
         return GameQuerySet(self.model, using=self._db).orphaned()
 
 
-class Game(models.Model):
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+class CollectionItem(models.Model):
     name = models.CharField(max_length=255, verbose_name="Game title")
-    platforms = models.ManyToManyField(
-        Platform,
-        verbose_name="Platform",
-        related_name="games",
-        through="GameOnPlatform",
-        blank=True,
-    )
-    play_priority = models.IntegerField(
-        verbose_name="Play Priority",
-        validators=[
-            MinValueValidator(0),
-            MaxValueValidator(10),
-        ],
-        null=True,
-        blank=True,
-    )
     played = models.BooleanField(
         verbose_name="Already Played", default=False, null=True
     )
-    controller_support = models.BooleanField(
-        verbose_name="Has controller support?", default=False, null=True, blank=True
-    )
-    max_players = models.PositiveIntegerField(default=1, null=True, blank=True)
-    party_fit = models.BooleanField(default=False, null=True, blank=True)
     review = models.IntegerField(
         verbose_name="Review value / rate",
         validators=[
@@ -94,6 +72,35 @@ class Game(models.Model):
         blank=True,
     )
     notes = models.TextField(verbose_name="Notes", null=True, blank=True)
+    play_priority = models.IntegerField(
+        verbose_name="Play Priority",
+        validators=[
+            MinValueValidator(0),
+            MaxValueValidator(10),
+        ],
+        null=True,
+        blank=True,
+    )
+    min_players = models.PositiveIntegerField(default=1, null=True, blank=True)
+    max_players = models.PositiveIntegerField(default=1, null=True, blank=True)
+
+    class Meta:
+        abstract = True
+
+
+class Game(CollectionItem):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    platforms = models.ManyToManyField(
+        Platform,
+        verbose_name="Platform",
+        related_name="games",
+        through="GameOnPlatform",
+        blank=True,
+    )
+    controller_support = models.BooleanField(
+        verbose_name="Has controller support?", default=False, null=True, blank=True
+    )
+    party_fit = models.BooleanField(default=False, null=True, blank=True)
     genres = models.ManyToManyField(Genre, blank=True)
 
     objects = GameManager.from_queryset(GameQuerySet)()
