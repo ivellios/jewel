@@ -2,7 +2,7 @@ from django.contrib.auth.models import User
 
 import factory
 
-from ...models import Game, GameOnPlatform, Platform, Vendor
+from ...models import Vendor, VideoGame, VideoGameOnPlatform, VideoGamePlatform
 
 
 class UserFactory(factory.django.DjangoModelFactory):
@@ -15,9 +15,9 @@ class UserFactory(factory.django.DjangoModelFactory):
     is_active = True
 
 
-class PlatformFactory(factory.django.DjangoModelFactory):
+class VideoGamePlatformFactory(factory.django.DjangoModelFactory):
     class Meta:
-        model = Platform
+        model = VideoGamePlatform
 
     name = factory.Sequence(lambda n: f"Platform {n}")
 
@@ -29,9 +29,9 @@ class VendorFactory(factory.django.DjangoModelFactory):
     name = factory.Sequence(lambda n: f"Vendor {n}")
 
 
-class GameFactory(factory.django.DjangoModelFactory):
+class VideoGameFactory(factory.django.DjangoModelFactory):
     class Meta:
-        model = Game
+        model = VideoGame
 
     name = factory.Sequence(lambda n: f"Game {n}")
     play_priority = factory.Faker("random_int", min=1, max=10)
@@ -50,16 +50,16 @@ class GameFactory(factory.django.DjangoModelFactory):
         # Create a default platform relationship so game is not orphaned
         # unless explicitly told not to (platforms=False)
         if extracted is None:
-            platform = PlatformFactory()
-            GameOnPlatform.objects.create(game=self, platform=platform)
+            platform = VideoGamePlatformFactory()
+            VideoGameOnPlatform.objects.create(game=self, platform=platform)
 
 
-class GameOnPlatformFactory(factory.django.DjangoModelFactory):
+class VideoGameOnPlatformFactory(factory.django.DjangoModelFactory):
     class Meta:
-        model = GameOnPlatform
+        model = VideoGameOnPlatform
 
-    game = factory.SubFactory(GameFactory)
-    platform = factory.SubFactory(PlatformFactory)
+    game = factory.SubFactory(VideoGameFactory)
+    platform = factory.SubFactory(VideoGamePlatformFactory)
     vendor = factory.SubFactory(VendorFactory)
     added = factory.Faker("date_this_year")
     price = factory.Faker("pydecimal", left_digits=2, right_digits=2, positive=True)
