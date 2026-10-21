@@ -4,15 +4,14 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('games', '0007_alter_gameonplatform_added'),
+        ("games", "0007_alter_gameonplatform_added"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='game',
-            name='min_players',
+            model_name="game",
+            name="min_players",
             field=models.PositiveIntegerField(blank=True, default=1, null=True),
         ),
     ]
