@@ -24,7 +24,7 @@ class GameOnPlatformInterface(abc.ABC):
         }
 
 
-class GameInterface(abc.ABC):
+class VideoGameInterface(abc.ABC):
     id: str | None
     name: str
     platforms: list[GameOnPlatformInterface]

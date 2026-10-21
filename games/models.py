@@ -22,7 +22,7 @@ class Vendor(NamedModel, models.Model):
     pass
 
 
-class Platform(NamedModel, models.Model):
+class VideoGamePlatform(NamedModel, models.Model):
     pass
 
 
@@ -30,7 +30,7 @@ class Genre(NamedModel, models.Model):
     pass
 
 
-class GameQuerySet(models.QuerySet):
+class VideoGameQuerySet(models.QuerySet):
     def with_active_platforms(self):
         """Return games that have at least one non-deleted platform"""
         return self.filter(platforms_meta_data__deleted=False).distinct()
@@ -41,7 +41,7 @@ class GameQuerySet(models.QuerySet):
         return self.exclude(platforms_meta_data__deleted=False)
 
 
-class GameManager(models.Manager):
+class VideoGameManager(models.Manager):
     def get_queryset(self):
         """Override to exclude orphaned games by default"""
         return (
@@ -54,36 +54,14 @@ class GameManager(models.Manager):
 
     def orphaned_only(self):
         """Return only orphaned games (no platforms or all platforms deleted)"""
-        return GameQuerySet(self.model, using=self._db).orphaned()
+        return VideoGameQuerySet(self.model, using=self._db).orphaned()
 
 
-class Game(models.Model):
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+class CollectionItem(models.Model):
     name = models.CharField(max_length=255, verbose_name="Game title")
-    platforms = models.ManyToManyField(
-        Platform,
-        verbose_name="Platform",
-        related_name="games",
-        through="GameOnPlatform",
-        blank=True,
-    )
-    play_priority = models.IntegerField(
-        verbose_name="Play Priority",
-        validators=[
-            MinValueValidator(0),
-            MaxValueValidator(10),
-        ],
-        null=True,
-        blank=True,
-    )
     played = models.BooleanField(
         verbose_name="Already Played", default=False, null=True
     )
-    controller_support = models.BooleanField(
-        verbose_name="Has controller support?", default=False, null=True, blank=True
-    )
-    max_players = models.PositiveIntegerField(default=1, null=True, blank=True)
-    party_fit = models.BooleanField(default=False, null=True, blank=True)
     review = models.IntegerField(
         verbose_name="Review value / rate",
         validators=[
@@ -94,9 +72,38 @@ class Game(models.Model):
         blank=True,
     )
     notes = models.TextField(verbose_name="Notes", null=True, blank=True)
+    play_priority = models.IntegerField(
+        verbose_name="Play Priority",
+        validators=[
+            MinValueValidator(0),
+            MaxValueValidator(10),
+        ],
+        null=True,
+        blank=True,
+    )
+    min_players = models.PositiveIntegerField(default=1, null=True, blank=True)
+    max_players = models.PositiveIntegerField(default=1, null=True, blank=True)
+
+    class Meta:
+        abstract = True
+
+
+class VideoGame(CollectionItem):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    platforms = models.ManyToManyField(
+        VideoGamePlatform,
+        verbose_name="Platform",
+        related_name="games",
+        through="VideoGameOnPlatform",
+        blank=True,
+    )
+    controller_support = models.BooleanField(
+        verbose_name="Has controller support?", default=False, null=True, blank=True
+    )
+    party_fit = models.BooleanField(default=False, null=True, blank=True)
     genres = models.ManyToManyField(Genre, blank=True)
 
-    objects = GameManager.from_queryset(GameQuerySet)()
+    objects = VideoGameManager.from_queryset(VideoGameQuerySet)()
 
     def __str__(self):
         return self.name
@@ -109,12 +116,12 @@ class Game(models.Model):
             pass
 
 
-class GameOnPlatform(models.Model):
+class VideoGameOnPlatform(models.Model):
     game = models.ForeignKey(
-        Game, on_delete=models.CASCADE, related_name="platforms_meta_data"
+        VideoGame, on_delete=models.CASCADE, related_name="platforms_meta_data"
     )
     platform = models.ForeignKey(
-        Platform, on_delete=models.CASCADE, related_name="games_meta_data"
+        VideoGamePlatform, on_delete=models.CASCADE, related_name="games_meta_data"
     )
     added = models.DateField(null=True, blank=True, default=date.today)
     identifier = models.CharField(

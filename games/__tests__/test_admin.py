@@ -10,12 +10,12 @@ from django.utils import timezone
 
 from games.admin import GameAdmin, LatestAddedFilter, VendorFilter
 from games.api.__tests__.factories import (
-    GameFactory,
-    PlatformFactory,
     UserFactory,
     VendorFactory,
+    VideoGameFactory,
+    VideoGamePlatformFactory,
 )
-from games.models import Game, GameOnPlatform
+from games.models import VideoGame, VideoGameOnPlatform
 
 
 def add_messages_to_request(request):
@@ -31,25 +31,25 @@ class GameAdminDisplayTestCase(TestCase):
     def setUp(self):
         self.factory = RequestFactory()
         self.site = AdminSite()
-        self.admin = GameAdmin(Game, self.site)
+        self.admin = GameAdmin(VideoGame, self.site)
         self.user = UserFactory()
         self.vendor1 = VendorFactory(name="Steam")
         self.vendor2 = VendorFactory(name="Epic Games")
-        self.platform = PlatformFactory(name="PC")
+        self.platform = VideoGamePlatformFactory(name="PC")
 
     def test_total_price_paid_display(self):
         """Test total_price_paid method displays sum of all platform prices"""
-        game = GameFactory(name="Test Game")
+        game = VideoGameFactory(name="Test Game")
 
         # Add game to platform with two different prices
-        GameOnPlatform.objects.create(
+        VideoGameOnPlatform.objects.create(
             game=game,
             platform=self.platform,
             vendor=self.vendor1,
             price=Decimal("10.99"),
             deleted=False,
         )
-        GameOnPlatform.objects.create(
+        VideoGameOnPlatform.objects.create(
             game=game,
             platform=self.platform,
             vendor=self.vendor2,
@@ -59,7 +59,7 @@ class GameAdminDisplayTestCase(TestCase):
 
         # Annotate the game object as admin would
         game = (
-            Game.objects.all_with_orphaned()
+            VideoGame.objects.all_with_orphaned()
             .annotate(total_price=models.Sum("platforms_meta_data__price"))
             .get(pk=game.pk)
         )
@@ -70,11 +70,11 @@ class GameAdminDisplayTestCase(TestCase):
 
     def test_total_price_paid_display_zero(self):
         """Test total_price_paid displays 0 for games with no prices"""
-        game = GameFactory(name="Free Game")
+        game = VideoGameFactory(name="Free Game")
 
         # Game with no platform relationships
         game = (
-            Game.objects.all_with_orphaned()
+            VideoGame.objects.all_with_orphaned()
             .annotate(total_price=models.Sum("platforms_meta_data__price"))
             .get(pk=game.pk)
         )
@@ -85,19 +85,19 @@ class GameAdminDisplayTestCase(TestCase):
     def test_latest_added_date_display(self):
         """Test latest_added_date shows most recent platform addition date"""
         # Prevent factory from creating automatic platform relationship
-        game = GameFactory(name="Test Game", platforms=False)
+        game = VideoGameFactory(name="Test Game", platforms=False)
         older_date = timezone.localdate() - timedelta(days=10)
         newer_date = timezone.localdate() - timedelta(days=5)
 
         # Add game to platform on different dates
-        GameOnPlatform.objects.create(
+        VideoGameOnPlatform.objects.create(
             game=game,
             platform=self.platform,
             vendor=self.vendor1,
             added=older_date,
             deleted=False,
         )
-        GameOnPlatform.objects.create(
+        VideoGameOnPlatform.objects.create(
             game=game,
             platform=self.platform,
             vendor=self.vendor2,
@@ -107,7 +107,7 @@ class GameAdminDisplayTestCase(TestCase):
 
         # Annotate as admin would
         game = (
-            Game.objects.all_with_orphaned()
+            VideoGame.objects.all_with_orphaned()
             .annotate(latest_added=models.Max("platforms_meta_data__added"))
             .get(pk=game.pk)
         )
@@ -118,10 +118,10 @@ class GameAdminDisplayTestCase(TestCase):
     def test_latest_added_date_display_never(self):
         """Test latest_added_date shows 'Never' for games without dates"""
         # Prevent factory from creating automatic platform relationship
-        game = GameFactory(name="Undated Game", platforms=False)
+        game = VideoGameFactory(name="Undated Game", platforms=False)
 
-        # Create GameOnPlatform with added=None
-        GameOnPlatform.objects.create(
+        # Create VideoGameOnPlatform with added=None
+        VideoGameOnPlatform.objects.create(
             game=game,
             platform=self.platform,
             vendor=self.vendor1,
@@ -131,7 +131,7 @@ class GameAdminDisplayTestCase(TestCase):
 
         # Annotate as admin would
         game = (
-            Game.objects.all_with_orphaned()
+            VideoGame.objects.all_with_orphaned()
             .annotate(latest_added=models.Max("platforms_meta_data__added"))
             .get(pk=game.pk)
         )
@@ -141,13 +141,13 @@ class GameAdminDisplayTestCase(TestCase):
 
     def test_vendors_list_display(self):
         """Test vendors_list shows comma-separated vendor names"""
-        game = GameFactory(name="Multi-Vendor Game")
+        game = VideoGameFactory(name="Multi-Vendor Game")
 
         # Add game from multiple vendors
-        GameOnPlatform.objects.create(
+        VideoGameOnPlatform.objects.create(
             game=game, platform=self.platform, vendor=self.vendor1, deleted=False
         )
-        GameOnPlatform.objects.create(
+        VideoGameOnPlatform.objects.create(
             game=game, platform=self.platform, vendor=self.vendor2, deleted=False
         )
 
@@ -158,7 +158,7 @@ class GameAdminDisplayTestCase(TestCase):
 
     def test_vendors_list_display_none(self):
         """Test vendors_list shows 'None' for games without active platforms"""
-        game = GameFactory(name="No Vendor Game")
+        game = VideoGameFactory(name="No Vendor Game")
 
         result = self.admin.vendors_list(game)
         self.assertEqual(result, "None")
@@ -170,23 +170,23 @@ class AdminFilterTestCase(TestCase):
     def setUp(self):
         self.vendor1 = VendorFactory(name="Steam")
         self.vendor2 = VendorFactory(name="Epic Games")
-        self.platform = PlatformFactory(name="PC")
+        self.platform = VideoGamePlatformFactory(name="PC")
 
     def test_vendor_filter_lookups(self):
         """Test VendorFilter shows only vendors with active games"""
         # Create games with vendors
-        game1 = GameFactory(name="Steam Game")
-        game2 = GameFactory(name="Epic Game")
+        game1 = VideoGameFactory(name="Steam Game")
+        game2 = VideoGameFactory(name="Epic Game")
         VendorFactory(name="Unused Vendor")
 
-        GameOnPlatform.objects.create(
+        VideoGameOnPlatform.objects.create(
             game=game1, platform=self.platform, vendor=self.vendor1, deleted=False
         )
-        GameOnPlatform.objects.create(
+        VideoGameOnPlatform.objects.create(
             game=game2, platform=self.platform, vendor=self.vendor2, deleted=False
         )
 
-        filter_instance = VendorFilter(None, {}, Game, None)
+        filter_instance = VendorFilter(None, {}, VideoGame, None)
         lookups = filter_instance.lookups(None, None)
 
         # Should only show vendors with active games
@@ -197,24 +197,24 @@ class AdminFilterTestCase(TestCase):
 
     def test_vendor_filter_queryset(self):
         """Test VendorFilter filters games correctly"""
-        game1 = GameFactory(name="Steam Game")
-        game2 = GameFactory(name="Epic Game")
-        game3 = GameFactory(name="Both Vendors Game")
+        game1 = VideoGameFactory(name="Steam Game")
+        game2 = VideoGameFactory(name="Epic Game")
+        game3 = VideoGameFactory(name="Both Vendors Game")
 
-        GameOnPlatform.objects.create(
+        VideoGameOnPlatform.objects.create(
             game=game1, platform=self.platform, vendor=self.vendor1, deleted=False
         )
-        GameOnPlatform.objects.create(
+        VideoGameOnPlatform.objects.create(
             game=game2, platform=self.platform, vendor=self.vendor2, deleted=False
         )
-        GameOnPlatform.objects.create(
+        VideoGameOnPlatform.objects.create(
             game=game3, platform=self.platform, vendor=self.vendor1, deleted=False
         )
 
         # Test filtering by Steam vendor
-        queryset = Game.objects.all_with_orphaned()
+        queryset = VideoGame.objects.all_with_orphaned()
         filter_instance = VendorFilter(
-            None, {"vendor_filter": str(self.vendor1.id)}, Game, None
+            None, {"vendor_filter": str(self.vendor1.id)}, VideoGame, None
         )
         filtered = filter_instance.queryset(None, queryset)
 
@@ -229,11 +229,11 @@ class AdminFilterTestCase(TestCase):
         yesterday = today - timedelta(days=1)
 
         # Create games - one added today, one added yesterday
-        game_today = GameFactory(name="Today Game")
-        game_yesterday = GameFactory(name="Yesterday Game")
+        game_today = VideoGameFactory(name="Today Game")
+        game_yesterday = VideoGameFactory(name="Yesterday Game")
 
         # Game added today
-        GameOnPlatform.objects.create(
+        VideoGameOnPlatform.objects.create(
             game=game_today,
             platform=self.platform,
             vendor=self.vendor1,
@@ -242,7 +242,7 @@ class AdminFilterTestCase(TestCase):
         )
 
         # Game added yesterday
-        GameOnPlatform.objects.create(
+        VideoGameOnPlatform.objects.create(
             game=game_yesterday,
             platform=self.platform,
             vendor=self.vendor1,
@@ -251,11 +251,11 @@ class AdminFilterTestCase(TestCase):
         )
 
         # Use the actual admin get_queryset method to ensure we test the real logic
-        admin = GameAdmin(Game, None)
+        admin = GameAdmin(VideoGame, None)
 
         # Create a mock request for the filter
         filter_instance = LatestAddedFilter(
-            None, {"latest_added_filter": "today"}, Game, None
+            None, {"latest_added_filter": "today"}, VideoGame, None
         )
         base_queryset = admin.get_queryset(
             None
@@ -275,10 +275,10 @@ class GameAdminActionTestCase(TestCase):
     def setUp(self):
         self.factory = RequestFactory()
         self.site = AdminSite()
-        self.admin = GameAdmin(Game, self.site)
+        self.admin = GameAdmin(VideoGame, self.site)
         self.user = UserFactory()
-        self.steam_platform = PlatformFactory(name="Steam")
-        self.epic_platform = PlatformFactory(name="Epic Games")
+        self.steam_platform = VideoGamePlatformFactory(name="Steam")
+        self.epic_platform = VideoGamePlatformFactory(name="Epic Games")
         self.steam_vendor = VendorFactory(name="Steam")
 
     @patch("games.admin.set_steam_game_appid")
@@ -291,9 +291,9 @@ class GameAdminActionTestCase(TestCase):
         )
 
         # Create Steam game without identifier
-        game1 = GameFactory(name="Steam Game 1")
+        game1 = VideoGameFactory(name="Steam Game 1")
         game1.platforms.add(self.steam_platform)  # Add to many-to-many
-        GameOnPlatform.objects.create(
+        VideoGameOnPlatform.objects.create(
             game=game1,
             platform=self.steam_platform,
             vendor=self.steam_vendor,
@@ -302,9 +302,9 @@ class GameAdminActionTestCase(TestCase):
         )
 
         # Create another Steam game without identifier
-        game2 = GameFactory(name="Steam Game 2")
+        game2 = VideoGameFactory(name="Steam Game 2")
         game2.platforms.add(self.steam_platform)  # Add to many-to-many
-        GameOnPlatform.objects.create(
+        VideoGameOnPlatform.objects.create(
             game=game2,
             platform=self.steam_platform,
             vendor=self.steam_vendor,
@@ -316,17 +316,17 @@ class GameAdminActionTestCase(TestCase):
         request.user = self.user
         add_messages_to_request(request)
 
-        queryset = Game.objects.filter(id__in=[game1.id, game2.id])
+        queryset = VideoGame.objects.filter(id__in=[game1.id, game2.id])
 
         self.admin.match_steam_identifier(request, queryset)
 
         # Verify set_steam_game_appid was called for both games
         self.assertEqual(mock_set_steam_appid.call_count, 2)
 
-        # Verify it was called with GameOnPlatform instances
+        # Verify it was called with VideoGameOnPlatform instances
         for call_args in mock_set_steam_appid.call_args_list:
             gop = call_args[0][0]  # First argument of the call
-            self.assertIsInstance(gop, GameOnPlatform)
+            self.assertIsInstance(gop, VideoGameOnPlatform)
             self.assertEqual(gop.platform.name, "Steam")
             self.assertIn(gop.game.name, ["Steam Game 1", "Steam Game 2"])
 
@@ -334,8 +334,8 @@ class GameAdminActionTestCase(TestCase):
     def test_match_steam_identifier_skips_non_steam_games(self, mock_set_steam_appid):
         """Test match_steam_identifier action skips non-Steam games"""
         # Create Epic game
-        epic_game = GameFactory(name="Epic Game")
-        GameOnPlatform.objects.create(
+        epic_game = VideoGameFactory(name="Epic Game")
+        VideoGameOnPlatform.objects.create(
             game=epic_game,
             platform=self.epic_platform,
             vendor=VendorFactory(name="Epic Games"),
@@ -347,7 +347,7 @@ class GameAdminActionTestCase(TestCase):
         request.user = self.user
         add_messages_to_request(request)
 
-        queryset = Game.objects.filter(id=epic_game.id)
+        queryset = VideoGame.objects.filter(id=epic_game.id)
         self.admin.match_steam_identifier(request, queryset)
 
         # Verify set_steam_game_appid was NOT called
@@ -359,8 +359,8 @@ class GameAdminActionTestCase(TestCase):
     ):
         """Test match_steam_identifier action skips games with existing identifiers"""
         # Create Steam game WITH identifier
-        steam_game = GameFactory(name="Steam Game With ID")
-        GameOnPlatform.objects.create(
+        steam_game = VideoGameFactory(name="Steam Game With ID")
+        VideoGameOnPlatform.objects.create(
             game=steam_game,
             platform=self.steam_platform,
             vendor=self.steam_vendor,
@@ -372,7 +372,7 @@ class GameAdminActionTestCase(TestCase):
         request.user = self.user
         add_messages_to_request(request)
 
-        queryset = Game.objects.filter(id=steam_game.id)
+        queryset = VideoGame.objects.filter(id=steam_game.id)
         self.admin.match_steam_identifier(request, queryset)
 
         # Verify set_steam_game_appid was NOT called
@@ -382,8 +382,8 @@ class GameAdminActionTestCase(TestCase):
     def test_match_steam_identifier_skips_deleted_platforms(self, mock_set_steam_appid):
         """Test match_steam_identifier action skips soft-deleted platform relationships"""
         # Create Steam game with soft-deleted platform relationship
-        steam_game = GameFactory(name="Deleted Steam Game")
-        GameOnPlatform.objects.create(
+        steam_game = VideoGameFactory(name="Deleted Steam Game")
+        VideoGameOnPlatform.objects.create(
             game=steam_game,
             platform=self.steam_platform,
             vendor=self.steam_vendor,
@@ -395,7 +395,7 @@ class GameAdminActionTestCase(TestCase):
         request.user = self.user
         add_messages_to_request(request)
 
-        queryset = Game.objects.filter(id=steam_game.id)
+        queryset = VideoGame.objects.filter(id=steam_game.id)
         self.admin.match_steam_identifier(request, queryset)
 
         # Verify set_steam_game_appid was NOT called
@@ -414,9 +414,9 @@ class GameAdminActionTestCase(TestCase):
         # Create 3 Steam games without identifiers
         games = []
         for i in range(3):
-            game = GameFactory(name=f"Steam Game {i + 1}")
+            game = VideoGameFactory(name=f"Steam Game {i + 1}")
             game.platforms.add(self.steam_platform)  # Add to many-to-many
-            GameOnPlatform.objects.create(
+            VideoGameOnPlatform.objects.create(
                 game=game,
                 platform=self.steam_platform,
                 vendor=self.steam_vendor,
@@ -429,7 +429,7 @@ class GameAdminActionTestCase(TestCase):
         request.user = self.user
         add_messages_to_request(request)
 
-        queryset = Game.objects.filter(id__in=[g.id for g in games])
+        queryset = VideoGame.objects.filter(id__in=[g.id for g in games])
         self.admin.match_steam_identifier(request, queryset)
 
         # Verify set_steam_game_appid was called 3 times
@@ -443,10 +443,10 @@ class GameAdminActionTestCase(TestCase):
         mock_set_steam_appid.return_value = True
 
         # Create platform with different case
-        steam_lower = PlatformFactory(name="steam")
-        steam_game = GameFactory(name="Lowercase Steam Game")
+        steam_lower = VideoGamePlatformFactory(name="steam")
+        steam_game = VideoGameFactory(name="Lowercase Steam Game")
         steam_game.platforms.add(steam_lower)  # Add to many-to-many
-        GameOnPlatform.objects.create(
+        VideoGameOnPlatform.objects.create(
             game=steam_game,
             platform=steam_lower,
             vendor=self.steam_vendor,
@@ -458,16 +458,16 @@ class GameAdminActionTestCase(TestCase):
         request.user = self.user
         add_messages_to_request(request)
 
-        queryset = Game.objects.filter(id=steam_game.id)
+        queryset = VideoGame.objects.filter(id=steam_game.id)
         self.admin.match_steam_identifier(request, queryset)
 
         # Verify set_steam_game_appid was called once
         self.assertEqual(mock_set_steam_appid.call_count, 1)
 
-        # Verify it was called with the correct GameOnPlatform instance
+        # Verify it was called with the correct VideoGameOnPlatform instance
         call_args = mock_set_steam_appid.call_args_list[0]
         gop_called = call_args[0][0]  # First argument of the call
-        self.assertIsInstance(gop_called, GameOnPlatform)
+        self.assertIsInstance(gop_called, VideoGameOnPlatform)
         self.assertEqual(gop_called.platform.name, "steam")
         self.assertEqual(gop_called.game.name, "Lowercase Steam Game")
 
@@ -478,15 +478,15 @@ class GameAdminDisplayMethodTestCase(TestCase):
     def setUp(self):
         self.factory = RequestFactory()
         self.site = AdminSite()
-        self.admin = GameAdmin(Game, self.site)
-        self.steam_platform = PlatformFactory(name="Steam")
-        self.epic_platform = PlatformFactory(name="Epic Games")
+        self.admin = GameAdmin(VideoGame, self.site)
+        self.steam_platform = VideoGamePlatformFactory(name="Steam")
+        self.epic_platform = VideoGamePlatformFactory(name="Epic Games")
         self.steam_vendor = VendorFactory(name="Steam")
 
     def test_game_url_displays_steam_link_for_steam_games(self):
         """Test game_url displays Steam store link for Steam games with identifier"""
-        game = GameFactory(name="Steam Game")
-        GameOnPlatform.objects.create(
+        game = VideoGameFactory(name="Steam Game")
+        VideoGameOnPlatform.objects.create(
             game=game,
             platform=self.steam_platform,
             vendor=self.steam_vendor,
@@ -503,8 +503,8 @@ class GameAdminDisplayMethodTestCase(TestCase):
 
     def test_game_url_displays_dash_for_non_steam_games(self):
         """Test game_url displays '-' for non-Steam games"""
-        game = GameFactory(name="Epic Game")
-        GameOnPlatform.objects.create(
+        game = VideoGameFactory(name="Epic Game")
+        VideoGameOnPlatform.objects.create(
             game=game,
             platform=self.epic_platform,
             vendor=VendorFactory(name="Epic Games"),
@@ -517,8 +517,8 @@ class GameAdminDisplayMethodTestCase(TestCase):
 
     def test_game_url_displays_dash_for_steam_games_without_identifier(self):
         """Test game_url displays '-' for Steam games without identifier"""
-        game = GameFactory(name="Steam Game No ID")
-        GameOnPlatform.objects.create(
+        game = VideoGameFactory(name="Steam Game No ID")
+        VideoGameOnPlatform.objects.create(
             game=game,
             platform=self.steam_platform,
             vendor=self.steam_vendor,
@@ -531,8 +531,8 @@ class GameAdminDisplayMethodTestCase(TestCase):
 
     def test_game_url_displays_dash_for_steam_games_with_deleted_platforms(self):
         """Test game_url displays '-' for Steam games with soft-deleted platform relationships"""
-        game = GameFactory(name="Deleted Steam Game")
-        GameOnPlatform.objects.create(
+        game = VideoGameFactory(name="Deleted Steam Game")
+        VideoGameOnPlatform.objects.create(
             game=game,
             platform=self.steam_platform,
             vendor=self.steam_vendor,
@@ -545,9 +545,9 @@ class GameAdminDisplayMethodTestCase(TestCase):
 
     def test_game_url_case_insensitive_steam_platform_matching(self):
         """Test game_url works with different case variations of Steam platform name"""
-        steam_lower = PlatformFactory(name="steam")
-        game = GameFactory(name="Lowercase Steam Game")
-        GameOnPlatform.objects.create(
+        steam_lower = VideoGamePlatformFactory(name="steam")
+        game = VideoGameFactory(name="Lowercase Steam Game")
+        VideoGameOnPlatform.objects.create(
             game=game,
             platform=steam_lower,
             vendor=self.steam_vendor,
@@ -563,10 +563,10 @@ class GameAdminDisplayMethodTestCase(TestCase):
 
     def test_game_url_uses_first_active_steam_platform(self):
         """Test game_url uses first active Steam platform if multiple exist"""
-        game = GameFactory(name="Multi-Platform Steam Game")
+        game = VideoGameFactory(name="Multi-Platform Steam Game")
 
         # Create first Steam platform relationship
-        GameOnPlatform.objects.create(
+        VideoGameOnPlatform.objects.create(
             game=game,
             platform=self.steam_platform,
             vendor=self.steam_vendor,
@@ -576,7 +576,7 @@ class GameAdminDisplayMethodTestCase(TestCase):
 
         # Create second Steam platform relationship (different vendor)
         steam_vendor2 = VendorFactory(name="Steam Alternative")
-        GameOnPlatform.objects.create(
+        VideoGameOnPlatform.objects.create(
             game=game,
             platform=self.steam_platform,
             vendor=steam_vendor2,

@@ -5,7 +5,7 @@ from rest_framework import generics, status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from ..models import Game, GameOnPlatform, Platform, Vendor
+from ..models import Vendor, VideoGame, VideoGameOnPlatform, VideoGamePlatform
 from .filters import GameFilterSet
 from .serializers import (
     GameCreateSerializer,
@@ -19,7 +19,7 @@ from .serializers import (
 
 
 class PlatformListCreateAPIView(generics.ListCreateAPIView):
-    queryset = Platform.objects.all()
+    queryset = VideoGamePlatform.objects.all()
     serializer_class = PlatformSerializer
     permission_classes = [IsAuthenticated]
 
@@ -31,7 +31,7 @@ class VendorListAPIView(generics.ListAPIView):
 
 
 class GameListCreateAPIView(generics.ListCreateAPIView):
-    queryset = Game.objects.all()
+    queryset = VideoGame.objects.all()
     permission_classes = [IsAuthenticated]
     filter_backends = [DjangoFilterBackend]
     filterset_class = GameFilterSet
@@ -43,7 +43,7 @@ class GameListCreateAPIView(generics.ListCreateAPIView):
 
 
 class GameDetailAPIView(generics.RetrieveUpdateAPIView):
-    queryset = Game.objects.all()
+    queryset = VideoGame.objects.all()
     lookup_field = "id"
     permission_classes = [IsAuthenticated]
 
@@ -60,9 +60,9 @@ class GamePlatformCreateAPIView(generics.CreateAPIView):
     def get_serializer_context(self):
         context: dict[str, Any] = dict(super().get_serializer_context())
         try:
-            game = Game.objects.get(id=self.kwargs["game_id"])
+            game = VideoGame.objects.get(id=self.kwargs["game_id"])
             context["game"] = game
-        except Game.DoesNotExist:
+        except VideoGame.DoesNotExist:
             context["game"] = None
         return context
 
@@ -73,12 +73,16 @@ class GamePlatformDetailAPIView(generics.RetrieveUpdateDestroyAPIView):
 
     def get_object(self):
         try:
-            game = Game.objects.get(id=self.kwargs["game_id"])
-            platform = Platform.objects.get(id=self.kwargs["platform_id"])
-            return GameOnPlatform.objects.get(
+            game = VideoGame.objects.get(id=self.kwargs["game_id"])
+            platform = VideoGamePlatform.objects.get(id=self.kwargs["platform_id"])
+            return VideoGameOnPlatform.objects.get(
                 game=game, platform=platform, deleted=False
             )
-        except (Game.DoesNotExist, Platform.DoesNotExist, GameOnPlatform.DoesNotExist):
+        except (
+            VideoGame.DoesNotExist,
+            VideoGamePlatform.DoesNotExist,
+            VideoGameOnPlatform.DoesNotExist,
+        ):
             return None
 
     def put(self, request, game_id, platform_id):

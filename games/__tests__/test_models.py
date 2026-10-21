@@ -1,57 +1,59 @@
 from django.test import TestCase
 from django.utils import timezone
 
-from games.api.__tests__.factories import GameFactory, PlatformFactory
-from games.models import Game, GameOnPlatform
+from games.api.__tests__.factories import VideoGameFactory, VideoGamePlatformFactory
+from games.models import VideoGame, VideoGameOnPlatform
 
 
-class GameManagerTestCase(TestCase):
+class VideoGameManagerTestCase(TestCase):
     def setUp(self):
-        self.platform1 = PlatformFactory(name="Steam")
-        self.platform2 = PlatformFactory(name="Epic Games")
+        self.platform1 = VideoGamePlatformFactory(name="Steam")
+        self.platform2 = VideoGamePlatformFactory(name="Epic Games")
 
-        # Game with active platforms
-        self.game_with_platforms = GameFactory(name="Active Game", platforms=False)
-        self.active_gop1 = GameOnPlatform.objects.create(
+        # VideoGame with active platforms
+        self.game_with_platforms = VideoGameFactory(name="Active Game", platforms=False)
+        self.active_gop1 = VideoGameOnPlatform.objects.create(
             game=self.game_with_platforms, platform=self.platform1
         )
-        self.active_gop2 = GameOnPlatform.objects.create(
+        self.active_gop2 = VideoGameOnPlatform.objects.create(
             game=self.game_with_platforms, platform=self.platform2
         )
 
-        # Game with all platforms deleted
-        self.orphaned_game = GameFactory(name="Orphaned Game", platforms=False)
-        self.deleted_gop1 = GameOnPlatform.objects.create(
+        # VideoGame with all platforms deleted
+        self.orphaned_game = VideoGameFactory(name="Orphaned Game", platforms=False)
+        self.deleted_gop1 = VideoGameOnPlatform.objects.create(
             game=self.orphaned_game,
             platform=self.platform1,
             deleted=True,
             deleted_at=timezone.now(),
         )
-        self.deleted_gop2 = GameOnPlatform.objects.create(
+        self.deleted_gop2 = VideoGameOnPlatform.objects.create(
             game=self.orphaned_game,
             platform=self.platform2,
             deleted=True,
             deleted_at=timezone.now(),
         )
 
-        # Game with mixed platforms (some deleted, some active)
-        self.mixed_game = GameFactory(name="Mixed Game", platforms=False)
-        self.mixed_active_gop = GameOnPlatform.objects.create(
+        # VideoGame with mixed platforms (some deleted, some active)
+        self.mixed_game = VideoGameFactory(name="Mixed Game", platforms=False)
+        self.mixed_active_gop = VideoGameOnPlatform.objects.create(
             game=self.mixed_game, platform=self.platform1
         )
-        self.mixed_deleted_gop = GameOnPlatform.objects.create(
+        self.mixed_deleted_gop = VideoGameOnPlatform.objects.create(
             game=self.mixed_game,
             platform=self.platform2,
             deleted=True,
             deleted_at=timezone.now(),
         )
 
-        # Game with no platforms at all
-        self.no_platforms_game = GameFactory(name="No Platforms Game", platforms=False)
+        # VideoGame with no platforms at all
+        self.no_platforms_game = VideoGameFactory(
+            name="No Platforms Game", platforms=False
+        )
 
     def test_default_queryset_excludes_orphaned_games(self):
-        """Test that Game.objects.all() excludes games with no active platforms"""
-        games = Game.objects.all()
+        """Test that VideoGame.objects.all() excludes games with no active platforms"""
+        games = VideoGame.objects.all()
         game_names = [game.name for game in games]
 
         # Should include games with active platforms
@@ -64,7 +66,7 @@ class GameManagerTestCase(TestCase):
 
     def test_all_with_orphaned_includes_all_games(self):
         """Test that all_with_orphaned() returns all games including orphaned"""
-        games = Game.objects.all_with_orphaned()
+        games = VideoGame.objects.all_with_orphaned()
         game_names = [game.name for game in games]
 
         # Should include all games
@@ -78,7 +80,7 @@ class GameManagerTestCase(TestCase):
 
     def test_orphaned_only_returns_only_orphaned_games(self):
         """Test that orphaned_only() returns only games with no active platforms"""
-        games = Game.objects.orphaned_only()
+        games = VideoGame.objects.orphaned_only()
         game_names = [game.name for game in games]
 
         # Should only include orphaned games
@@ -93,32 +95,34 @@ class GameManagerTestCase(TestCase):
         self.assertEqual(games.count(), 2)
 
 
-class GameQuerySetTestCase(TestCase):
+class VideoGameQuerySetTestCase(TestCase):
     def setUp(self):
-        self.platform1 = PlatformFactory(name="Steam")
-        self.platform2 = PlatformFactory(name="Epic Games")
+        self.platform1 = VideoGamePlatformFactory(name="Steam")
+        self.platform2 = VideoGamePlatformFactory(name="Epic Games")
 
-        # Game with active platforms
-        self.game_with_platforms = GameFactory(name="Active Game", platforms=False)
-        GameOnPlatform.objects.create(
+        # VideoGame with active platforms
+        self.game_with_platforms = VideoGameFactory(name="Active Game", platforms=False)
+        VideoGameOnPlatform.objects.create(
             game=self.game_with_platforms, platform=self.platform1
         )
 
-        # Game with all platforms deleted
-        self.orphaned_game = GameFactory(name="Orphaned Game", platforms=False)
-        GameOnPlatform.objects.create(
+        # VideoGame with all platforms deleted
+        self.orphaned_game = VideoGameFactory(name="Orphaned Game", platforms=False)
+        VideoGameOnPlatform.objects.create(
             game=self.orphaned_game,
             platform=self.platform1,
             deleted=True,
             deleted_at=timezone.now(),
         )
 
-        # Game with no platforms
-        self.no_platforms_game = GameFactory(name="No Platforms Game", platforms=False)
+        # VideoGame with no platforms
+        self.no_platforms_game = VideoGameFactory(
+            name="No Platforms Game", platforms=False
+        )
 
     def test_with_active_platforms_method(self):
-        """Test GameQuerySet.with_active_platforms() method"""
-        games = Game.objects.all_with_orphaned().with_active_platforms()
+        """Test VideoGameQuerySet.with_active_platforms() method"""
+        games = VideoGame.objects.all_with_orphaned().with_active_platforms()
         game_names = [game.name for game in games]
 
         # Should only include games with active platforms
@@ -131,8 +135,8 @@ class GameQuerySetTestCase(TestCase):
         self.assertEqual(games.count(), 1)
 
     def test_orphaned_method(self):
-        """Test GameQuerySet.orphaned() method"""
-        games = Game.objects.all_with_orphaned().orphaned()
+        """Test VideoGameQuerySet.orphaned() method"""
+        games = VideoGame.objects.all_with_orphaned().orphaned()
         game_names = [game.name for game in games]
 
         # Should include orphaned games
@@ -147,19 +151,19 @@ class GameQuerySetTestCase(TestCase):
     def test_chaining_queryset_methods(self):
         """Test that queryset methods can be chained properly"""
         # Test that we can chain from all_with_orphaned to specific filters
-        active_games = Game.objects.all_with_orphaned().with_active_platforms()
-        orphaned_games = Game.objects.all_with_orphaned().orphaned()
+        active_games = VideoGame.objects.all_with_orphaned().with_active_platforms()
+        orphaned_games = VideoGame.objects.all_with_orphaned().orphaned()
 
         # Counts should add up to total
-        total_games = Game.objects.all_with_orphaned().count()
+        total_games = VideoGame.objects.all_with_orphaned().count()
         self.assertEqual(active_games.count() + orphaned_games.count(), total_games)
 
 
-class GameOnPlatformSoftDeleteTestCase(TestCase):
+class VideoGameOnPlatformSoftDeleteTestCase(TestCase):
     def setUp(self):
-        self.platform = PlatformFactory(name="Steam")
-        self.game = GameFactory(name="Test Game", platforms=False)
-        self.game_platform = GameOnPlatform.objects.create(
+        self.platform = VideoGamePlatformFactory(name="Steam")
+        self.game = VideoGameFactory(name="Test Game", platforms=False)
+        self.game_platform = VideoGameOnPlatform.objects.create(
             game=self.game, platform=self.platform
         )
 
@@ -188,19 +192,21 @@ class GameOnPlatformSoftDeleteTestCase(TestCase):
 
     def test_game_visibility_changes_with_soft_delete(self):
         """Test that game visibility changes when all platforms are soft deleted"""
-        # Game should be visible initially
-        self.assertTrue(Game.objects.filter(id=self.game.id).exists())
+        # VideoGame should be visible initially
+        self.assertTrue(VideoGame.objects.filter(id=self.game.id).exists())
 
         # Soft delete the platform
         self.game_platform.soft_delete()
 
-        # Game should no longer be visible in default queryset
-        self.assertFalse(Game.objects.filter(id=self.game.id).exists())
+        # VideoGame should no longer be visible in default queryset
+        self.assertFalse(VideoGame.objects.filter(id=self.game.id).exists())
 
         # But should be visible in all_with_orphaned
         self.assertTrue(
-            Game.objects.all_with_orphaned().filter(id=self.game.id).exists()
+            VideoGame.objects.all_with_orphaned().filter(id=self.game.id).exists()
         )
 
         # And should be in orphaned_only
-        self.assertTrue(Game.objects.orphaned_only().filter(id=self.game.id).exists())
+        self.assertTrue(
+            VideoGame.objects.orphaned_only().filter(id=self.game.id).exists()
+        )

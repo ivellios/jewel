@@ -2,7 +2,7 @@ import os
 import tempfile
 from unittest.mock import Mock, patch
 
-from abstract.repositories import GameRepository
+from abstract.repositories import VideoGameRepository
 from csv_importer.adapters import CSVGameAdapter
 from csv_importer.importers import CSVGamesImporter
 
@@ -11,7 +11,7 @@ class TestCSVGamesImporter:
     def test_init_sets_attributes(self):
         """Test that __init__ correctly sets instance attributes"""
         file_path = "/test/path.csv"
-        mock_repository = Mock(spec=GameRepository)
+        mock_repository = Mock(spec=VideoGameRepository)
 
         importer = CSVGamesImporter(file_path, mock_repository)
 
@@ -23,7 +23,7 @@ class TestCSVGamesImporter:
     def test_init_with_custom_adapter(self):
         """Test __init__ with custom adapter class"""
         file_path = "/test/path.csv"
-        mock_repository = Mock(spec=GameRepository)
+        mock_repository = Mock(spec=VideoGameRepository)
         custom_adapter = Mock()
 
         importer = CSVGamesImporter(file_path, mock_repository, custom_adapter)
@@ -43,7 +43,7 @@ class TestCSVGamesImporter:
         mock_read_csv.return_value = mock_df
 
         file_path = "/test/path.csv"
-        mock_repository = Mock(spec=GameRepository)
+        mock_repository = Mock(spec=VideoGameRepository)
         importer = CSVGamesImporter(file_path, mock_repository)
 
         importer.load_data()
@@ -66,7 +66,7 @@ class TestCSVGamesImporter:
         mock_read_csv.return_value = mock_df
 
         file_path = "/test/path.csv"
-        mock_repository = Mock(spec=GameRepository)
+        mock_repository = Mock(spec=VideoGameRepository)
         importer = CSVGamesImporter(file_path, mock_repository)
 
         importer.load_data()
@@ -81,7 +81,7 @@ class TestCSVGamesImporter:
     @patch("csv_importer.importers.tqdm")
     def test_process_calls_load_data_if_no_data(self, mock_tqdm):
         """Test that process calls load_data if data is None"""
-        mock_repository = Mock(spec=GameRepository)
+        mock_repository = Mock(spec=VideoGameRepository)
         importer = CSVGamesImporter("/test/path.csv", mock_repository)
 
         # Mock load_data to avoid actual file I/O
@@ -95,7 +95,7 @@ class TestCSVGamesImporter:
     @patch("csv_importer.importers.tqdm")
     def test_process_skips_load_data_if_data_exists(self, mock_tqdm):
         """Test that process doesn't call load_data if data already exists"""
-        mock_repository = Mock(spec=GameRepository)
+        mock_repository = Mock(spec=VideoGameRepository)
         importer = CSVGamesImporter("/test/path.csv", mock_repository)
 
         # Set existing data
@@ -110,7 +110,7 @@ class TestCSVGamesImporter:
     def test_process_skips_games_without_name(self, mock_tqdm):
         """Test that process skips games with no name"""
         mock_tqdm.return_value = []
-        mock_repository = Mock(spec=GameRepository)
+        mock_repository = Mock(spec=VideoGameRepository)
         mock_adapter_class = Mock()
 
         # Mock adapter that returns empty name
@@ -134,7 +134,7 @@ class TestCSVGamesImporter:
         mock_tqdm.return_value = [{"name": "Test Game"}]
         mock_tqdm.write = Mock()
 
-        mock_repository = Mock(spec=GameRepository)
+        mock_repository = Mock(spec=VideoGameRepository)
         mock_adapter_class = Mock()
 
         # Mock adapter with valid name
@@ -169,7 +169,7 @@ class TestCSVGamesImporter:
         mock_tqdm.return_value = [{"name": "Duplicate Game"}]
         mock_tqdm.write = Mock()
 
-        mock_repository = Mock(spec=GameRepository)
+        mock_repository = Mock(spec=VideoGameRepository)
         mock_adapter_class = Mock()
 
         # Mock adapter
@@ -203,7 +203,7 @@ class TestCSVGamesImporter:
         mock_tqdm.return_value = game_data
         mock_tqdm.write = Mock()
 
-        mock_repository = Mock(spec=GameRepository)
+        mock_repository = Mock(spec=VideoGameRepository)
         mock_adapter_class = Mock()
 
         # Mock adapters - first and third valid, second invalid
@@ -251,7 +251,7 @@ Another Game,PlayStation,X,x"""
             temp_path = f.name
 
         try:
-            mock_repository = Mock(spec=GameRepository)
+            mock_repository = Mock(spec=VideoGameRepository)
             importer = CSVGamesImporter(temp_path, mock_repository)
 
             importer.load_data()
@@ -283,7 +283,7 @@ Game 2,PlayStation,Sony"""
             mock_tqdm.side_effect = lambda data, total: data
             mock_tqdm.write = Mock()
 
-            mock_repository = Mock(spec=GameRepository)
+            mock_repository = Mock(spec=VideoGameRepository)
             mock_repository.create.side_effect = [
                 (Mock(name="Game 1"), True),  # First game created
                 (Mock(name="Game 2"), False),  # Second game is duplicate

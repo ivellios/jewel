@@ -7,7 +7,7 @@ from django.shortcuts import render
 from django.urls import reverse
 
 from games.forms import BulkGameImportForm, GameImportFormSet
-from games.models import Game, GameOnPlatform, Platform
+from games.models import VideoGame, VideoGameOnPlatform, VideoGamePlatform
 
 
 def bulk_import_view(request):
@@ -18,12 +18,12 @@ def bulk_import_view(request):
         formset = GameImportFormSet()
         return render(
             request,
-            "admin/games/game/bulk_import.html",
+            "admin/games/videogame/bulk_import.html",
             {
                 "form": form,
                 "formset": formset,
                 "title": "Bulk Import Games",
-                "opts": Game._meta,
+                "opts": VideoGame._meta,
                 "has_change_permission": True,
             },
         )
@@ -38,8 +38,8 @@ def bulk_import_view(request):
         global_platform = None
         if global_platform_id:
             try:
-                global_platform = Platform.objects.get(id=global_platform_id)
-            except Platform.DoesNotExist:
+                global_platform = VideoGamePlatform.objects.get(id=global_platform_id)
+            except VideoGamePlatform.DoesNotExist:
                 global_platform = None
 
         formset = GameImportFormSet(  # type: ignore[call-arg]  # Custom formset accepts it.
@@ -51,12 +51,12 @@ def bulk_import_view(request):
         # Re-render form with errors
         return render(
             request,
-            "admin/games/game/bulk_import.html",
+            "admin/games/videogame/bulk_import.html",
             {
                 "form": form,
                 "formset": formset,
                 "title": "Bulk Import Games",
-                "opts": Game._meta,
+                "opts": VideoGame._meta,
                 "has_change_permission": True,
             },
         )
@@ -117,7 +117,7 @@ def process_bulk_import(request, form, formset):
     # Check for duplicates
     new_games_on_platforms = []
     for game_data in games_to_import:
-        if GameOnPlatform.objects.filter(
+        if VideoGameOnPlatform.objects.filter(
             game__name__iexact=game_data["name"], platform_id=game_data["platform"]
         ).exists():
             duplicates.append(game_data["name"])
@@ -126,7 +126,7 @@ def process_bulk_import(request, form, formset):
 
     if not new_games_on_platforms:
         messages.warning(request, "No new games to import - all games already exist.")
-        return HttpResponseRedirect(reverse("admin:games_game_changelist"))
+        return HttpResponseRedirect(reverse("admin:games_videogame_changelist"))
 
     # Calculate price per game (excluding duplicates)
     if bundle_price == 0 or len(new_games_on_platforms) == 0:
@@ -140,16 +140,16 @@ def process_bulk_import(request, form, formset):
     for game_data in new_games_on_platforms:
         # Create game
         try:
-            game = Game.objects.get(name__iexact=game_data["name"])
-        except Game.DoesNotExist:
-            game = Game.objects.create(
+            game = VideoGame.objects.get(name__iexact=game_data["name"])
+        except VideoGame.DoesNotExist:
+            game = VideoGame.objects.create(
                 name=game_data["name"],
                 play_priority=game_data["play_priority"],
                 notes=game_data["notes"],
             )
 
         # Create platform relationship
-        GameOnPlatform.objects.create(
+        VideoGameOnPlatform.objects.create(
             game=game,
             platform=game_data["platform"],
             vendor=vendor,
@@ -169,4 +169,4 @@ def process_bulk_import(request, form, formset):
             success_msg += f" (and {len(duplicates) - 5} more)"
 
     messages.success(request, success_msg)
-    return HttpResponseRedirect(reverse("admin:games_game_changelist"))
+    return HttpResponseRedirect(reverse("admin:games_videogame_changelist"))

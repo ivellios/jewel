@@ -1,13 +1,13 @@
 import abc
 from uuid import UUID
 
-from abstract.games import GameInterface
+from abstract.games import VideoGameInterface
 
 
-class GameRepository(abc.ABC):
+class VideoGameRepository(abc.ABC):
     @staticmethod
     @abc.abstractmethod
-    def create(game: GameInterface):
+    def create(game: VideoGameInterface):
         pass
 
     @staticmethod

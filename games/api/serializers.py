@@ -2,12 +2,12 @@ from django.utils import timezone
 
 from rest_framework import serializers
 
-from ..models import Game, GameOnPlatform, Genre, Platform, Vendor
+from ..models import Genre, Vendor, VideoGame, VideoGameOnPlatform, VideoGamePlatform
 
 
 class PlatformSerializer(serializers.ModelSerializer):
     class Meta:
-        model = Platform
+        model = VideoGamePlatform
         fields = ["id", "name"]
 
     def validate_name(self, value):
@@ -32,21 +32,21 @@ class VendorSerializer(serializers.ModelSerializer):
         return value.strip() if value else value
 
 
-class GameOnPlatformSerializer(serializers.ModelSerializer):
+class VideoGameOnPlatformSerializer(serializers.ModelSerializer):
     platform = PlatformSerializer(read_only=True)
     vendor = VendorSerializer(read_only=True)
 
     class Meta:
-        model = GameOnPlatform
+        model = VideoGameOnPlatform
         fields = ["platform", "added", "identifier", "price", "vendor"]
 
 
 class GameSerializer(serializers.ModelSerializer):
-    platforms_meta_data = GameOnPlatformSerializer(many=True, read_only=True)
+    platforms_meta_data = VideoGameOnPlatformSerializer(many=True, read_only=True)
     genres = GenreSerializer(many=True, read_only=True)
 
     class Meta:
-        model = Game
+        model = VideoGame
         fields = [
             "id",
             "name",
@@ -69,7 +69,7 @@ class GameCreateSerializer(serializers.ModelSerializer):
     price = serializers.DecimalField(max_digits=6, decimal_places=2, write_only=True)
 
     class Meta:
-        model = Game
+        model = VideoGame
         fields = [
             "name",
             "platform_name",
@@ -104,9 +104,9 @@ class GameCreateSerializer(serializers.ModelSerializer):
         price = validated_data.pop("price")
 
         # Get or create platform with case-insensitive lookup
-        platform = Platform.objects.filter(name__iexact=platform_name).first()
+        platform = VideoGamePlatform.objects.filter(name__iexact=platform_name).first()
         if not platform:
-            platform = Platform.objects.create(name=platform_name)
+            platform = VideoGamePlatform.objects.create(name=platform_name)
 
         # Get or create vendor with case-insensitive lookup
         vendor = Vendor.objects.filter(name__iexact=vendor_name).first()
@@ -114,10 +114,10 @@ class GameCreateSerializer(serializers.ModelSerializer):
             vendor = Vendor.objects.create(name=vendor_name)
 
         # Create the game
-        game = Game.objects.create(**validated_data)
+        game = VideoGame.objects.create(**validated_data)
 
-        # Create the GameOnPlatform relationship
-        GameOnPlatform.objects.create(
+        # Create the VideoGameOnPlatform relationship
+        VideoGameOnPlatform.objects.create(
             game=game,
             platform=platform,
             vendor=vendor,
@@ -130,7 +130,7 @@ class GameCreateSerializer(serializers.ModelSerializer):
 
 class GameUpdateSerializer(serializers.ModelSerializer):
     class Meta:
-        model = Game
+        model = VideoGame
         fields = [
             "name",
             "play_priority",
@@ -153,7 +153,7 @@ class GamePlatformUpdateSerializer(serializers.ModelSerializer):
     vendor_name = serializers.CharField(max_length=100, write_only=True, required=False)
 
     class Meta:
-        model = GameOnPlatform
+        model = VideoGameOnPlatform
         fields = ["added", "identifier", "price", "vendor_name"]
 
     def validate_vendor_name(self, value):
@@ -176,7 +176,7 @@ class GamePlatformCreateSerializer(serializers.ModelSerializer):
     vendor_name = serializers.CharField(max_length=100, write_only=True, required=False)
 
     class Meta:
-        model = GameOnPlatform
+        model = VideoGameOnPlatform
         fields = ["platform_name", "vendor_name", "added", "identifier", "price"]
 
     def validate_platform_name(self, value):
@@ -193,11 +193,11 @@ class GamePlatformCreateSerializer(serializers.ModelSerializer):
         if not game:
             raise serializers.ValidationError("Game not found")
 
-        platform, created = Platform.objects.get_or_create(
+        platform, created = VideoGamePlatform.objects.get_or_create(
             name__iexact=platform_name, defaults={"name": platform_name}
         )
 
-        if GameOnPlatform.objects.filter(game=game, platform=platform).exists():
+        if VideoGameOnPlatform.objects.filter(game=game, platform=platform).exists():
             raise serializers.ValidationError(
                 "This game already exists on this platform"
             )
@@ -208,7 +208,7 @@ class GamePlatformCreateSerializer(serializers.ModelSerializer):
                 name__iexact=vendor_name, defaults={"name": vendor_name}
             )
 
-        return GameOnPlatform.objects.create(
+        return VideoGameOnPlatform.objects.create(
             game=game,
             platform=platform,
             vendor=vendor,
