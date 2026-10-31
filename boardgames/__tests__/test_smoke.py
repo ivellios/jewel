@@ -18,13 +18,21 @@ class BoardgamesAppSmokeTest(TestCase):
         self.assertEqual(config.name, "boardgames")
         self.assertEqual(config.default_auto_field, "django.db.models.BigAutoField")
 
-    def test_no_models_or_migrations(self):
-        """Verify no models or migration files are introduced."""
-        config = apps.get_app_config("boardgames")
-        # No migrations_module attribute means no migrations directory exists.
-        self.assertFalse(hasattr(config, "migrations_module"))
-        # Verify no models are defined (models_module is None when no models.py exists).
-        self.assertIsNone(config.models_module)
+    def test_models_and_migrations_exist(self):
+        """Verify boardgames now defines models and has a migrations module."""
+        import os
+
+        from boardgames.models import BGGMetadata, BGGSyncRun
+
+        # Migrations directory should now exist.
+        migrations_dir = os.path.join(
+            os.path.dirname(__file__), "..", "migrations"
+        )
+        self.assertTrue(os.path.isdir(migrations_dir))
+
+        # Verify models are importable.
+        self.assertIsNotNone(BGGMetadata)
+        self.assertIsNotNone(BGGSyncRun)
 
     def test_games_unchanged(self):
         """Verify existing games app is unaffected."""
