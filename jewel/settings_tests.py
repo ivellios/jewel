@@ -149,3 +149,9 @@ REST_FRAMEWORK = {
         "rest_framework.permissions.IsAuthenticated",
     ],
 }
+
+
+# BoardGameGeek Configuration (test placeholder — no real credentials).
+BGG_ACCESS_TOKEN = "test-bgg-token"  # noqa: S105 - required isolated BGG test setting.
+BGG_API_URL = "https://api.boardgamegeek.com"
+BGG_REQUEST_TIMEOUT = 30
