@@ -4,9 +4,9 @@ from django.core.exceptions import ValidationError
 from django.db.utils import IntegrityError
 from django.test import TestCase
 
-from boardgames.models import BGGMetadata, BGGSyncRun, BGGSyncRunStatus
+from boardgames.models import BGGMetadata, BGGSyncRun, BGGSyncRunStatus, BoardGame
 
-from .factories import BGGMetadataFactory
+from .factories import BGGMetadataFactory, BoardGameFactory
 
 
 class BGGMetadataModelTest(TestCase):
@@ -154,3 +154,96 @@ class BGGSyncRunModelTest(TestCase):
         self.assertEqual(refreshed.items_failed, 10)
         self.assertIsNotNone(refreshed.error_messages)
         self.assertIsNotNone(refreshed.diagnostics)
+
+
+class BoardGameModelTest(TestCase):
+    """Verify BoardGame model constraints and behaviour."""
+
+    def test_uuid_primary_key(self):
+        """BoardGame uses UUID primary key."""
+        bg = BoardGameFactory()
+        self.assertIsNotNone(bg.id)
+        self.assertEqual(type(bg.id).__name__, "UUID")
+
+    def test_str_uses_editable_name(self):
+        """__str__ returns the editable name when set."""
+        bg = BoardGameFactory(name="Gloomhaven")
+        self.assertEqual(str(bg), "Gloomhaven")
+
+    def test_str_falls_back_to_metadata_name(self):
+        """__str__ falls back to linked metadata name."""
+        meta = BGGMetadataFactory(name="Catan")
+        bg = BoardGameFactory(metadata=meta, name=None)
+        self.assertEqual(str(bg), "Catan")
+
+    def test_str_falls_back_to_base_name(self):
+        """__str__ falls back to CollectionItem base name."""
+        bg = BoardGameFactory(name=None, metadata__name=None)
+        # CollectionItem provides a default faker name
+        self.assertNotEqual(str(bg), "")
+
+    def test_metadata_is_optional(self):
+        """BoardGame can exist without linked BGG metadata."""
+        bg = BoardGameFactory(metadata=None)
+        self.assertIsNone(bg.metadata)
+
+    def test_editable_name_overrides_metadata_name(self):
+        """Local editable name takes priority over metadata name."""
+        meta = BGGMetadataFactory(name="Carcassonne")
+        bg = BoardGameFactory(metadata=meta, name="Carcassonne (local name)")
+        self.assertEqual(bg.display_name, "Carcassonne (local name)")
+
+    def test_local_only_copy_has_no_metadata(self):
+        """Local/manual copies have metadata=None and imported=False."""
+        bg = BoardGameFactory(metadata=None, imported=False)
+        self.assertIsNone(bg.metadata)
+        self.assertFalse(bg.imported)
+
+    def test_imported_flag_set_on_sync_copy(self):
+        """Imported copies track BGG origin explicitly."""
+        meta = BGGMetadataFactory(name="Pandemic")
+        bg = BoardGameFactory(metadata=meta, imported=True, owned=True)
+        self.assertTrue(bg.imported)
+        self.assertTrue(bg.owned)
+
+    def test_owned_and_removed_fields(self):
+        """owned and removed are independent boolean flags."""
+        bg = BoardGameFactory(owned=True, removed=False)
+        self.assertTrue(bg.owned)
+        self.assertFalse(bg.removed)
+
+        bg.removed = True
+        bg.save()
+        refreshed = BoardGame.objects.get(pk=bg.pk)
+        self.assertTrue(refreshed.owned)
+        self.assertTrue(refreshed.removed)
+
+    def test_local_copy_does_not_affect_metadata(self):
+        """Removing a BoardGame copy does not affect BGGMetadata."""
+        meta = BGGMetadataFactory(name="Wingspan")
+        meta_copy_count = BGGMetadata.objects.filter(name="Wingspan").count()
+        BoardGameFactory(metadata=meta, imported=True)
+        self.assertEqual(BGGMetadata.objects.filter(name="Wingspan").count(), meta_copy_count)
+
+    def test_multiple_copies_share_same_metadata(self):
+        """Multiple BoardGame rows can reference the same BGGMetadata."""
+        meta = BGGMetadataFactory(name="Azul")
+        BoardGameFactory(metadata=meta, name="Azul copy 1")
+        BoardGameFactory(metadata=meta, name="Azul copy 2")
+        self.assertEqual(
+            BoardGame.objects.filter(metadata=meta).count(), 2
+        )
+
+    def test_distinct_metadata_ids_produce_distinct_copies(self):
+        """Different BGG metadata IDs yield distinct BoardGame rows."""
+        meta_a = BGGMetadataFactory(name="Ticket to Ride")
+        meta_b = BGGMetadataFactory(name="Ticket to Ride: Europe")
+        bg_a = BoardGameFactory(metadata=meta_a, name="TTR")
+        bg_b = BoardGameFactory(metadata=meta_b, name="TTR Europe")
+        self.assertNotEqual(bg_a.id, bg_b.id)
+        self.assertNotEqual(bg_a.metadata_id, bg_b.metadata_id)
+
+    def test_non_metadata_boardgame_has_no_metadata_link(self):
+        """BoardGame without metadata has no metadata FK set."""
+        bg = BoardGameFactory(metadata=None)
+        self.assertIsNone(bg.metadata_id)
