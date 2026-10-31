@@ -48,6 +48,63 @@ class BGGMetadata(models.Model):
         return f"BGG#{self.bgg_id}"
 
 
+class BGGExpansion(models.Model):
+    """Explicit BoardGameGeek expansion relationship.
+
+    Stores the BGG ``extends`` link between games so that an expansion
+    can reference multiple base games and the relationship is
+    deduplicated and self-link-safe.
+
+    One canonical row per (expansion, parent) pair.  Expansion games
+    that also appear as ``parent`` support chain links (expansion of
+    expansion).  No other table is touched.
+    """
+
+    expansion = models.ForeignKey(
+        "BGGMetadata",
+        on_delete=models.CASCADE,
+        related_name="expansions_of",
+        db_constraint=True,
+        help_text="The game that is the expansion.",
+    )
+    parent = models.ForeignKey(
+        "BGGMetadata",
+        on_delete=models.CASCADE,
+        related_name="is_expanded_by",
+        db_constraint=True,
+        help_text="The base game that the expansion extends.",
+    )
+    # BGG expansion-type values (see BGG API documentation).
+    # Common values: "boardgameexpansion", "boardgamesubdirectory".
+    exp_type = models.CharField(
+        max_length=40,
+        null=True,
+        blank=True,
+        help_text="BGG expansion type (e.g. 'boardgameexpansion').",
+    )
+    order = models.SmallIntegerField(
+        default=0,
+        help_text="Order among multiple base games for the same expansion.",
+    )
+
+    class Meta:
+        ordering = ["expansion__bgg_id", "order"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["expansion", "parent"],
+                name="boardgames_unique_expansion_parent",
+            ),
+            models.CheckConstraint(
+                check=~models.Q(expansion=models.F("parent")),
+                name="boardgames_no_self_link",
+                violation_error_message="An expansion cannot link to itself.",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"BGG#{self.expansion.bgg_id} -> BGG#{self.parent.bgg_id}"
+
+
 class BGGSyncRunStatus(models.TextChoices):
     """Lifecycle status for a BGG synchronization run."""
 

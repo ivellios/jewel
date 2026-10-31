@@ -2,7 +2,7 @@
 
 import factory
 
-from ..models import BGGMetadata, BGGSyncRun, BGGSyncRunStatus
+from ..models import BGGExpansion, BGGMetadata, BGGSyncRun, BGGSyncRunStatus
 
 
 class BGGMetadataFactory(factory.django.DjangoModelFactory):
@@ -27,3 +27,13 @@ class BGGSyncRunFactory(factory.django.DjangoModelFactory):
     items_fetched = factory.Faker("random_int", min=0, max=5000)
     items_failed = 0
     diagnostics = factory.Faker("sentence", max_nb_chars=500)
+
+
+class BGGExpansionFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = BGGExpansion
+
+    expansion = factory.SubFactory(BGGMetadataFactory)
+    parent = factory.SubFactory(BGGMetadataFactory)
+    exp_type = "boardgameexpansion"
+    order = 0

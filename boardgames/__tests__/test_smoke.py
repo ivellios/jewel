@@ -22,7 +22,11 @@ class BoardgamesAppSmokeTest(TestCase):
         """Verify boardgames now defines models and has a migrations module."""
         import os
 
-        from boardgames.models import BGGMetadata, BGGSyncRun
+        from boardgames.models import (
+            BGGExpansion,
+            BGGMetadata,
+            BGGSyncRun,
+        )
 
         # Migrations directory should now exist.
         migrations_dir = os.path.join(
@@ -33,6 +37,7 @@ class BoardgamesAppSmokeTest(TestCase):
         # Verify models are importable.
         self.assertIsNotNone(BGGMetadata)
         self.assertIsNotNone(BGGSyncRun)
+        self.assertIsNotNone(BGGExpansion)
 
     def test_games_unchanged(self):
         """Verify existing games app is unaffected."""
