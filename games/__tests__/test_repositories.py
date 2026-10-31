@@ -3,14 +3,18 @@ from decimal import Decimal
 
 import pytest
 
-from abstract.games import GameInterface, GameOnPlatformInterface, PlatformInterface
-from games.models import Game
+from abstract.games import (
+    GameOnPlatformInterface,
+    PlatformInterface,
+    VideoGameInterface,
+)
+from games.models import VideoGame
 from games.repositories import DjangoGameRepository
 
 
 @pytest.fixture
 def empty_game():
-    class SimpleGame(GameInterface):
+    class SimpleGame(VideoGameInterface):
         id = None
         name = "Some game"
         platforms = []
@@ -31,7 +35,7 @@ def empty_game():
 
 @pytest.fixture
 def simple_game():
-    class SimpleGame(GameInterface):
+    class SimpleGame(VideoGameInterface):
         id = None
         name = "Some game"
         platforms = []
@@ -95,7 +99,7 @@ def test_repository_remove_simple_game(simple_game):
     DjangoGameRepository.remove(game.id)
 
     # then
-    assert not Game.objects.filter(pk=game.id).exists()
+    assert not VideoGame.objects.filter(pk=game.id).exists()
 
 
 def test_repository_create_creates_platforms(simple_game_on_platform, simple_game):

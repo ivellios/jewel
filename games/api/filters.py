@@ -2,7 +2,7 @@ from django.db.models import Q
 
 import django_filters
 
-from ..models import Game
+from ..models import VideoGame
 
 
 class EnhancedSearchFilter(django_filters.CharFilter):
@@ -45,5 +45,5 @@ class GameFilterSet(django_filters.FilterSet):
     )
 
     class Meta:
-        model = Game
+        model = VideoGame
         fields = ["search"]

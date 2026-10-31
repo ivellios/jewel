@@ -5,7 +5,7 @@ import numpy
 import pandas
 from tqdm import tqdm
 
-from abstract.repositories import GameRepository
+from abstract.repositories import VideoGameRepository
 
 from .adapters import CSVGameAdapter
 
@@ -16,7 +16,7 @@ class CSVGamesImporter:
     def __init__(
         self,
         file_path: str,
-        repository: GameRepository,
+        repository: VideoGameRepository,
         adapter_class: Callable[[dict[Any, Any]], CSVGameAdapter] = CSVGameAdapter,
     ):
         self.file_path = file_path

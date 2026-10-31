@@ -5,7 +5,7 @@ from django import forms
 from django.forms import formsets
 from django.utils import timezone
 
-from games.models import Platform, Vendor
+from games.models import Vendor, VideoGamePlatform
 
 
 class BulkGameImportForm(forms.Form):
@@ -33,7 +33,7 @@ class BulkGameImportForm(forms.Form):
     )
 
     global_platform = forms.ModelChoiceField(
-        queryset=Platform.objects.all(),
+        queryset=VideoGamePlatform.objects.all(),
         required=False,
         empty_label="-- No default platform --",
         help_text="Optional: Default platform for games without specific platform selected",
@@ -89,7 +89,7 @@ class GameImportForm(forms.Form):
     )
 
     platform = forms.ModelChoiceField(
-        queryset=Platform.objects.all(),
+        queryset=VideoGamePlatform.objects.all(),
         required=False,
         help_text="Platform for this specific game",
     )

@@ -53,28 +53,28 @@
     }
   },
   {
-    "model": "games.platform",
+    "model": "games.videogameplatform",
     "pk": 1,
     "fields": {
       "name": "PC"
     }
   },
   {
-    "model": "games.platform",
+    "model": "games.videogameplatform",
     "pk": 2,
     "fields": {
       "name": "PlayStation 5"
     }
   },
   {
-    "model": "games.platform",
+    "model": "games.videogameplatform",
     "pk": 3,
     "fields": {
       "name": "Nintendo Switch"
     }
   },
   {
-    "model": "games.platform",
+    "model": "games.videogameplatform",
     "pk": 4,
     "fields": {
       "name": "Xbox"
@@ -123,7 +123,7 @@
     }
   },
   {
-    "model": "games.game",
+    "model": "games.videogame",
     "pk": "0907b37c-70dc-4a1d-bb63-7b7f6b87ff0b",
     "fields": {
       "name": "Stardew Valley",
@@ -140,7 +140,7 @@
     }
   },
   {
-    "model": "games.game",
+    "model": "games.videogame",
     "pk": "6cac85ba-c722-43f4-aef5-d2470de844ce",
     "fields": {
       "name": "The Witcher 3",
@@ -158,7 +158,7 @@
     }
   },
   {
-    "model": "games.game",
+    "model": "games.videogame",
     "pk": "b4d990c8-b288-4b8c-9b20-df6e607ac7db",
     "fields": {
       "name": "Elden Ring",
@@ -176,7 +176,7 @@
     }
   },
   {
-    "model": "games.game",
+    "model": "games.videogame",
     "pk": "bce7ddb4-a3eb-4b16-803b-ce941dc10575",
     "fields": {
       "name": "Hades",
@@ -194,7 +194,7 @@
     }
   },
   {
-    "model": "games.game",
+    "model": "games.videogame",
     "pk": "faade74d-f5d9-4250-a994-a17fc84bcfdd",
     "fields": {
       "name": "Slay the Spire",
@@ -212,7 +212,7 @@
     }
   },
   {
-    "model": "games.game",
+    "model": "games.videogame",
     "pk": "fafa9235-60bd-4682-838b-1162ec329557",
     "fields": {
       "name": "It Takes Two",
@@ -229,7 +229,7 @@
     }
   },
   {
-    "model": "games.gameonplatform",
+    "model": "games.videogameonplatform",
     "pk": 1,
     "fields": {
       "game": "6cac85ba-c722-43f4-aef5-d2470de844ce",
@@ -243,7 +243,7 @@
     }
   },
   {
-    "model": "games.gameonplatform",
+    "model": "games.videogameonplatform",
     "pk": 2,
     "fields": {
       "game": "6cac85ba-c722-43f4-aef5-d2470de844ce",
@@ -257,7 +257,7 @@
     }
   },
   {
-    "model": "games.gameonplatform",
+    "model": "games.videogameonplatform",
     "pk": 3,
     "fields": {
       "game": "bce7ddb4-a3eb-4b16-803b-ce941dc10575",
@@ -271,7 +271,7 @@
     }
   },
   {
-    "model": "games.gameonplatform",
+    "model": "games.videogameonplatform",
     "pk": 4,
     "fields": {
       "game": "bce7ddb4-a3eb-4b16-803b-ce941dc10575",
@@ -285,7 +285,7 @@
     }
   },
   {
-    "model": "games.gameonplatform",
+    "model": "games.videogameonplatform",
     "pk": 5,
     "fields": {
       "game": "b4d990c8-b288-4b8c-9b20-df6e607ac7db",
@@ -299,7 +299,7 @@
     }
   },
   {
-    "model": "games.gameonplatform",
+    "model": "games.videogameonplatform",
     "pk": 6,
     "fields": {
       "game": "b4d990c8-b288-4b8c-9b20-df6e607ac7db",
@@ -313,7 +313,7 @@
     }
   },
   {
-    "model": "games.gameonplatform",
+    "model": "games.videogameonplatform",
     "pk": 7,
     "fields": {
       "game": "0907b37c-70dc-4a1d-bb63-7b7f6b87ff0b",
@@ -327,7 +327,7 @@
     }
   },
   {
-    "model": "games.gameonplatform",
+    "model": "games.videogameonplatform",
     "pk": 8,
     "fields": {
       "game": "0907b37c-70dc-4a1d-bb63-7b7f6b87ff0b",
@@ -341,7 +341,7 @@
     }
   },
   {
-    "model": "games.gameonplatform",
+    "model": "games.videogameonplatform",
     "pk": 9,
     "fields": {
       "game": "fafa9235-60bd-4682-838b-1162ec329557",
@@ -355,7 +355,7 @@
     }
   },
   {
-    "model": "games.gameonplatform",
+    "model": "games.videogameonplatform",
     "pk": 10,
     "fields": {
       "game": "fafa9235-60bd-4682-838b-1162ec329557",
@@ -369,7 +369,7 @@
     }
   },
   {
-    "model": "games.gameonplatform",
+    "model": "games.videogameonplatform",
     "pk": 11,
     "fields": {
       "game": "faade74d-f5d9-4250-a994-a17fc84bcfdd",

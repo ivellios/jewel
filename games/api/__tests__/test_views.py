@@ -7,8 +7,13 @@ from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from ...models import GameOnPlatform, Platform, Vendor
-from .factories import GameFactory, PlatformFactory, UserFactory, VendorFactory
+from ...models import Vendor, VideoGameOnPlatform, VideoGamePlatform
+from .factories import (
+    UserFactory,
+    VendorFactory,
+    VideoGameFactory,
+    VideoGamePlatformFactory,
+)
 
 
 class GameAPITestCase(APITestCase):
@@ -17,13 +22,13 @@ class GameAPITestCase(APITestCase):
         self.staff_user = UserFactory()
 
         # Create test platforms and vendors
-        self.platform1 = PlatformFactory(name="PC")
-        self.platform2 = PlatformFactory(name="PlayStation 5")
+        self.platform1 = VideoGamePlatformFactory(name="PC")
+        self.platform2 = VideoGamePlatformFactory(name="PlayStation 5")
         self.vendor1 = VendorFactory(name="Steam")
         self.vendor2 = VendorFactory(name="Epic Games Store")
 
         # Create test games
-        self.game1 = GameFactory(
+        self.game1 = VideoGameFactory(
             name="The Witcher 3",
             play_priority=9,
             played=False,
@@ -31,7 +36,7 @@ class GameAPITestCase(APITestCase):
             max_players=1,
         )
 
-        self.game2 = GameFactory(
+        self.game2 = VideoGameFactory(
             name="Cyberpunk 2077",
             play_priority=8,
             played=True,
@@ -39,7 +44,7 @@ class GameAPITestCase(APITestCase):
             max_players=1,
         )
 
-        self.game3 = GameFactory(
+        self.game3 = VideoGameFactory(
             name="Portal 2",
             play_priority=10,
             played=True,
@@ -207,7 +212,7 @@ class GameListCreateAPIViewTestCase(GameAPITestCase):
         }
         response = self.client.post(url, data, **self._get_auth_headers())
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        game_on_platform = GameOnPlatform.objects.get(game__name="Another Game")
+        game_on_platform = VideoGameOnPlatform.objects.get(game__name="Another Game")
         self.assertEqual(game_on_platform.added, timezone.now().date())
 
     def test_create_game_without_required_fields_fails(self):
@@ -246,7 +251,7 @@ class GameListCreateAPIViewTestCase(GameAPITestCase):
 
     def test_create_game_with_new_platform_and_vendor(self):
         url = reverse("game-list-create-api")
-        new_platform = PlatformFactory.build()
+        new_platform = VideoGamePlatformFactory.build()
         new_vendor = VendorFactory.build()
         data = {
             "name": "New Platform Game",
@@ -258,12 +263,14 @@ class GameListCreateAPIViewTestCase(GameAPITestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
         # Verify platform and vendor were created
-        self.assertTrue(Platform.objects.filter(name=new_platform.name).exists())
+        self.assertTrue(
+            VideoGamePlatform.objects.filter(name=new_platform.name).exists()
+        )
         self.assertTrue(Vendor.objects.filter(name=new_vendor.name).exists())
 
     def test_create_game_trims_platform_and_vendor_names(self):
         url = reverse("game-list-create-api")
-        platform_name = PlatformFactory.build().name
+        platform_name = VideoGamePlatformFactory.build().name
         vendor_name = VendorFactory.build().name
         data = {
             "name": "Trim Test Game",
@@ -275,16 +282,18 @@ class GameListCreateAPIViewTestCase(GameAPITestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
         # Verify trimmed names were used
-        self.assertTrue(Platform.objects.filter(name=platform_name).exists())
+        self.assertTrue(VideoGamePlatform.objects.filter(name=platform_name).exists())
         self.assertTrue(Vendor.objects.filter(name=vendor_name).exists())
-        self.assertFalse(Platform.objects.filter(name=f"  {platform_name}  ").exists())
+        self.assertFalse(
+            VideoGamePlatform.objects.filter(name=f"  {platform_name}  ").exists()
+        )
         self.assertFalse(Vendor.objects.filter(name=f"  {vendor_name}  ").exists())
 
     def test_create_game_reuses_existing_platform_and_vendor(self):
         url = reverse("game-list-create-api")
 
         # Use unique names from factories
-        platform_name = PlatformFactory.build().name
+        platform_name = VideoGamePlatformFactory.build().name
         vendor_name = VendorFactory.build().name
 
         # Create first game with new platform/vendor
@@ -297,7 +306,7 @@ class GameListCreateAPIViewTestCase(GameAPITestCase):
         response1 = self.client.post(url, data1, **self._get_auth_headers())
         self.assertEqual(response1.status_code, status.HTTP_201_CREATED)
 
-        platform_count = Platform.objects.filter(name=platform_name).count()
+        platform_count = VideoGamePlatform.objects.filter(name=platform_name).count()
         vendor_count = Vendor.objects.filter(name=vendor_name).count()
 
         # Create second game with same platform/vendor
@@ -312,13 +321,13 @@ class GameListCreateAPIViewTestCase(GameAPITestCase):
 
         # Verify no duplicates were created
         self.assertEqual(
-            Platform.objects.filter(name=platform_name).count(), platform_count
+            VideoGamePlatform.objects.filter(name=platform_name).count(), platform_count
         )
         self.assertEqual(Vendor.objects.filter(name=vendor_name).count(), vendor_count)
 
     def test_create_game_case_insensitive_platform_matching(self):
         # Create a platform with specific casing
-        platform = PlatformFactory(name="Nintendo Switch")
+        platform = VideoGamePlatformFactory(name="Nintendo Switch")
         vendor_name = VendorFactory.build().name
 
         url = reverse("game-list-create-api")
@@ -332,7 +341,7 @@ class GameListCreateAPIViewTestCase(GameAPITestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
         # Should only have one Nintendo Switch platform (the original casing)
-        platforms = Platform.objects.filter(name__iexact="nintendo switch")
+        platforms = VideoGamePlatform.objects.filter(name__iexact="nintendo switch")
         self.assertEqual(platforms.count(), 1)
         self.assertEqual(
             platforms.first().name, platform.name
@@ -341,7 +350,7 @@ class GameListCreateAPIViewTestCase(GameAPITestCase):
     def test_create_game_case_insensitive_vendor_matching(self):
         # Create a vendor with specific casing
         vendor = VendorFactory(name="GOG Galaxy")
-        platform_name = PlatformFactory.build().name
+        platform_name = VideoGamePlatformFactory.build().name
 
         url = reverse("game-list-create-api")
         data = {
@@ -371,12 +380,12 @@ class GameListCreateAPIViewTestCase(GameAPITestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
         # Should preserve the exact casing provided
-        platform = Platform.objects.get(name__iexact="nintendo switch oled")
+        platform = VideoGamePlatform.objects.get(name__iexact="nintendo switch oled")
         self.assertEqual(platform.name, "Nintendo Switch OLED")
 
     def test_create_game_preserves_new_vendor_casing(self):
         url = reverse("game-list-create-api")
-        platform_name = PlatformFactory.build().name
+        platform_name = VideoGamePlatformFactory.build().name
         data = {
             "name": "Vendor Casing Test",
             "platform_name": platform_name,
@@ -392,7 +401,7 @@ class GameListCreateAPIViewTestCase(GameAPITestCase):
 
     def test_create_game_mixed_case_scenarios(self):
         # Pre-create some entries with specific casing
-        platform = PlatformFactory(name="Xbox Series X")
+        platform = VideoGamePlatformFactory(name="Xbox Series X")
         vendor = VendorFactory(name="Microsoft Store")
 
         url = reverse("game-list-create-api")
@@ -417,13 +426,13 @@ class GameListCreateAPIViewTestCase(GameAPITestCase):
 
         # Should still only have one of each with original casing
         self.assertEqual(
-            Platform.objects.filter(name__iexact="xbox series x").count(), 1
+            VideoGamePlatform.objects.filter(name__iexact="xbox series x").count(), 1
         )
         self.assertEqual(
             Vendor.objects.filter(name__iexact="microsoft store").count(), 1
         )
 
-        platform = Platform.objects.get(name__iexact="xbox series x")
+        platform = VideoGamePlatform.objects.get(name__iexact="xbox series x")
         vendor = Vendor.objects.get(name__iexact="microsoft store")
         self.assertEqual(platform.name, "Xbox Series X")
         self.assertEqual(vendor.name, "Microsoft Store")
@@ -500,7 +509,7 @@ class PlatformListCreateAPIViewTestCase(GameAPITestCase):
         response = self.client.post(url, data, **self._get_auth_headers())
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(response.data["name"], "New Platform")
-        self.assertTrue(Platform.objects.filter(name="New Platform").exists())
+        self.assertTrue(VideoGamePlatform.objects.filter(name="New Platform").exists())
 
     def test_create_platform_trims_whitespace(self):
         url = reverse("platform-list-create-api")
@@ -521,7 +530,7 @@ class GamePlatformCreateAPIViewTestCase(GameAPITestCase):
     def setUp(self):
         super().setUp()
         # Add a platform to game1 for testing
-        GameOnPlatform.objects.create(
+        VideoGameOnPlatform.objects.create(
             game=self.game1, platform=self.platform1, vendor=self.vendor1, price=29.99
         )
 
@@ -536,8 +545,8 @@ class GamePlatformCreateAPIViewTestCase(GameAPITestCase):
         response = self.client.post(url, data, **self._get_auth_headers())
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
-        # Verify GameOnPlatform was created
-        game_platform = GameOnPlatform.objects.get(
+        # Verify VideoGameOnPlatform was created
+        game_platform = VideoGameOnPlatform.objects.get(
             game=self.game1, platform__name="PlayStation 5"
         )
         self.assertEqual(str(game_platform.price), "59.99")
@@ -567,8 +576,8 @@ class GamePlatformCreateAPIViewTestCase(GameAPITestCase):
 class GamePlatformDetailAPIViewTestCase(GameAPITestCase):
     def setUp(self):
         super().setUp()
-        # Create GameOnPlatform relationship for testing
-        self.game_platform = GameOnPlatform.objects.create(
+        # Create VideoGameOnPlatform relationship for testing
+        self.game_platform = VideoGameOnPlatform.objects.create(
             game=self.game1,
             platform=self.platform1,
             vendor=self.vendor1,
@@ -611,7 +620,7 @@ class GamePlatformDetailAPIViewTestCase(GameAPITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         # Verify relationship was soft deleted (still exists but marked as deleted)
-        game_platform = GameOnPlatform.objects.get(
+        game_platform = VideoGameOnPlatform.objects.get(
             game=self.game1, platform=self.platform1
         )
         self.assertTrue(game_platform.deleted)
@@ -619,7 +628,7 @@ class GamePlatformDetailAPIViewTestCase(GameAPITestCase):
 
         # Verify it's not accessible via API anymore (filtered out by deleted=False)
         self.assertFalse(
-            GameOnPlatform.objects.filter(
+            VideoGameOnPlatform.objects.filter(
                 game=self.game1, platform=self.platform1, deleted=False
             ).exists()
         )
@@ -693,13 +702,13 @@ class GamePlatformSoftDeleteTestCase(GameAPITestCase):
         self.staff_user = UserFactory()
 
         # Create test platforms and vendors
-        self.platform1 = PlatformFactory(name="PC")
-        self.platform2 = PlatformFactory(name="PlayStation 5")
+        self.platform1 = VideoGamePlatformFactory(name="PC")
+        self.platform2 = VideoGamePlatformFactory(name="PlayStation 5")
         self.vendor1 = VendorFactory(name="Steam")
         self.vendor2 = VendorFactory(name="Epic Games Store")
 
         # Create test games WITHOUT default platforms (platforms=False)
-        self.game1 = GameFactory(
+        self.game1 = VideoGameFactory(
             name="The Witcher 3",
             play_priority=9,
             played=False,
@@ -708,7 +717,7 @@ class GamePlatformSoftDeleteTestCase(GameAPITestCase):
             platforms=False,  # Don't create default platform
         )
 
-        self.game2 = GameFactory(
+        self.game2 = VideoGameFactory(
             name="Cyberpunk 2077",
             play_priority=8,
             played=True,
@@ -717,7 +726,7 @@ class GamePlatformSoftDeleteTestCase(GameAPITestCase):
             platforms=False,  # Don't create default platform
         )
 
-        self.game3 = GameFactory(
+        self.game3 = VideoGameFactory(
             name="Portal 2",
             play_priority=10,
             played=True,
@@ -727,14 +736,14 @@ class GamePlatformSoftDeleteTestCase(GameAPITestCase):
         )
 
         # Create game-platform relationships for testing
-        self.game1_platform1 = GameOnPlatform.objects.create(
+        self.game1_platform1 = VideoGameOnPlatform.objects.create(
             game=self.game1,
             platform=self.platform1,
             vendor=self.vendor1,
             price=29.99,
             identifier="PC-123",
         )
-        self.game1_platform2 = GameOnPlatform.objects.create(
+        self.game1_platform2 = VideoGameOnPlatform.objects.create(
             game=self.game1,
             platform=self.platform2,
             vendor=self.vendor2,
@@ -751,7 +760,7 @@ class GamePlatformSoftDeleteTestCase(GameAPITestCase):
         response = self.client.delete(url, **self._get_auth_headers())
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-        # GameOnPlatform should still exist but be marked as deleted
+        # VideoGameOnPlatform should still exist but be marked as deleted
         self.game1_platform1.refresh_from_db()
         self.assertTrue(self.game1_platform1.deleted)
         self.assertIsNotNone(self.game1_platform1.deleted_at)

@@ -1,37 +1,37 @@
 from django.test import TestCase
 
-from ...models import Game
+from ...models import VideoGame
 from ..filters import GameFilterSet
-from .factories import GameFactory
+from .factories import VideoGameFactory
 
 
 class GameFilterSetTestCase(TestCase):
     def setUp(self):
         # Create test games including games with spaces in names
-        self.game1 = GameFactory(
+        self.game1 = VideoGameFactory(
             name="The Witcher 3",
             platforms=False,  # Don't create default platform to avoid manager filtering
         )
-        self.game2 = GameFactory(
+        self.game2 = VideoGameFactory(
             name="Cyberpunk 2077",
             platforms=False,  # Don't create default platform to avoid manager filtering
         )
-        self.game3 = GameFactory(
+        self.game3 = VideoGameFactory(
             name="Portal 2",
             platforms=False,  # Don't create default platform to avoid manager filtering
         )
-        self.game4 = GameFactory(
+        self.game4 = VideoGameFactory(
             name="Grand Theft Auto V",
             platforms=False,  # Don't create default platform to avoid manager filtering
         )
-        self.game5 = GameFactory(
+        self.game5 = VideoGameFactory(
             name="Red Dead Redemption 2",
             platforms=False,  # Don't create default platform to avoid manager filtering
         )
 
     def test_search_single_game(self):
         """Test filtering for a single game using the search filter"""
-        queryset = Game.objects.all_with_orphaned()
+        queryset = VideoGame.objects.all_with_orphaned()
         filter_data = {"search": "witcher"}
         filterset = GameFilterSet(data=filter_data, queryset=queryset)
 
@@ -42,7 +42,7 @@ class GameFilterSetTestCase(TestCase):
 
     def test_search_multiple_games(self):
         """Test filtering for multiple games using comma-separated names"""
-        queryset = Game.objects.all_with_orphaned()
+        queryset = VideoGame.objects.all_with_orphaned()
         filter_data = {"search": "witcher,cyberpunk"}
         filterset = GameFilterSet(data=filter_data, queryset=queryset)
 
@@ -56,7 +56,7 @@ class GameFilterSetTestCase(TestCase):
 
     def test_search_case_insensitive(self):
         """Test that the search filter is case insensitive"""
-        queryset = Game.objects.all_with_orphaned()
+        queryset = VideoGame.objects.all_with_orphaned()
         filter_data = {"search": "PORTAL"}
         filterset = GameFilterSet(data=filter_data, queryset=queryset)
 
@@ -67,7 +67,7 @@ class GameFilterSetTestCase(TestCase):
 
     def test_search_partial_match(self):
         """Test that the search filter supports partial matching"""
-        queryset = Game.objects.all_with_orphaned()
+        queryset = VideoGame.objects.all_with_orphaned()
         filter_data = {"search": "cyber"}
         filterset = GameFilterSet(data=filter_data, queryset=queryset)
 
@@ -78,7 +78,7 @@ class GameFilterSetTestCase(TestCase):
 
     def test_search_with_whitespace(self):
         """Test that the search filter handles whitespace correctly"""
-        queryset = Game.objects.all_with_orphaned()
+        queryset = VideoGame.objects.all_with_orphaned()
         filter_data = {"search": "  witcher  ,  portal  "}
         filterset = GameFilterSet(data=filter_data, queryset=queryset)
 
@@ -92,7 +92,7 @@ class GameFilterSetTestCase(TestCase):
 
     def test_search_no_matches(self):
         """Test that the search filter returns empty queryset when no games match"""
-        queryset = Game.objects.all_with_orphaned()
+        queryset = VideoGame.objects.all_with_orphaned()
         filter_data = {"search": "nonexistent"}
         filterset = GameFilterSet(data=filter_data, queryset=queryset)
 
@@ -102,7 +102,7 @@ class GameFilterSetTestCase(TestCase):
 
     def test_search_empty_value(self):
         """Test that empty search filter returns all games"""
-        queryset = Game.objects.all_with_orphaned()
+        queryset = VideoGame.objects.all_with_orphaned()
         filter_data = {"search": ""}
         filterset = GameFilterSet(data=filter_data, queryset=queryset)
 
@@ -112,7 +112,7 @@ class GameFilterSetTestCase(TestCase):
 
     def test_search_with_space_in_names(self):
         """Test filtering for games with spaces in their names"""
-        queryset = Game.objects.all_with_orphaned()
+        queryset = VideoGame.objects.all_with_orphaned()
         filter_data = {"search": "grand theft,red dead"}
         filterset = GameFilterSet(data=filter_data, queryset=queryset)
 
@@ -126,7 +126,7 @@ class GameFilterSetTestCase(TestCase):
 
     def test_search_full_name_with_spaces(self):
         """Test filtering using full game names that contain spaces"""
-        queryset = Game.objects.all_with_orphaned()
+        queryset = VideoGame.objects.all_with_orphaned()
         filter_data = {"search": "The Witcher 3,Grand Theft Auto"}
         filterset = GameFilterSet(data=filter_data, queryset=queryset)
 
@@ -140,7 +140,7 @@ class GameFilterSetTestCase(TestCase):
 
     def test_search_mixed_space_and_no_space_names(self):
         """Test filtering with a mix of games with and without spaces"""
-        queryset = Game.objects.all_with_orphaned()
+        queryset = VideoGame.objects.all_with_orphaned()
         filter_data = {"search": "cyberpunk,grand theft,portal"}
         filterset = GameFilterSet(data=filter_data, queryset=queryset)
 
