@@ -8,7 +8,6 @@ from boardgames.services import upsert_detail
 from boardgames.services.canonical_upsert import UpsertResult
 
 from ..__tests__.factories import (
-    BGGExpansionFactory,
     BGGMetadataFactory,
     BoardGameFactory,
 )
@@ -285,7 +284,10 @@ class UpsertExpansionLinksTest(TestCase):
         result = upsert_detail(base_record)
 
         self.assertEqual(len(result.expansion_links), 2)
-        link_ids = {(l.expansion.bgg_id, l.parent.bgg_id) for l in result.expansion_links}
+        link_ids = {
+            (link.expansion.bgg_id, link.parent.bgg_id)
+            for link in result.expansion_links
+        }
         self.assertEqual(
             link_ids,
             {(600001, 600000), (600002, 600000)},
@@ -304,7 +306,10 @@ class UpsertExpansionLinksTest(TestCase):
         result = upsert_detail(base_record)
 
         self.assertEqual(len(result.expansion_links), 2)
-        link_ids = {(l.expansion.bgg_id, l.parent.bgg_id) for l in result.expansion_links}
+        link_ids = {
+            (link.expansion.bgg_id, link.parent.bgg_id)
+            for link in result.expansion_links
+        }
         self.assertEqual(
             link_ids,
             {(600000, 600001), (600000, 600002)},
@@ -355,12 +360,8 @@ class UpsertExpansionLinksTest(TestCase):
 
         # Only the non-self link (600001 -> 600000) is created.
         self.assertEqual(len(result.expansion_links), 1)
-        self.assertEqual(
-            result.expansion_links[0].expansion.bgg_id, 600001
-        )
-        self.assertEqual(
-            result.expansion_links[0].parent.bgg_id, 600000
-        )
+        self.assertEqual(result.expansion_links[0].expansion.bgg_id, 600001)
+        self.assertEqual(result.expansion_links[0].parent.bgg_id, 600000)
 
     def test_upsert_on_existing_metadata_creates_no_links(self):
         """Updating existing metadata (new=False) creates no links."""

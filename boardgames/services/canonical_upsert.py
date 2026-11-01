@@ -25,7 +25,6 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from django.db import transaction
-from django.db.models import QuerySet
 
 from boardgames.bgg import BGGDetailRecord
 from boardgames.models import BGGExpansion, BGGMetadata
