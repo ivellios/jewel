@@ -130,6 +130,72 @@ docker compose exec web uv run manage.py match_steam_games
 uv run manage.py match_steam_games
 ```
 
+## Synchronising BoardGameGeek collection
+
+**With Docker:**
+```shell
+docker compose exec web uv run manage.py sync_bgg_collection
+```
+
+**Without Docker:**
+```shell
+uv run manage.py sync_bgg_collection
+```
+
+### Configuration
+
+Required settings (added to `settings.py` and `.env` / `.env.example`):
+
+| Setting | Description | Default |
+|---|---|---|
+| `BGG_ACCESS_TOKEN` | BGG API access token (required) | — |
+| `BGG_USER_NAME` | BGG user name whose collection to sync (required) | — |
+| `BGG_API_URL` | BGG API base URL | `https://api.boardgamegeek.com` |
+| `BGG_REQUEST_TIMEOUT` | Request timeout in seconds | `30` |
+
+### Exit codes
+
+| Code | Meaning |
+|---|---|
+| `0` | Full successful reconciliation — all collection items processed without errors. |
+| `1` | Partial reconciliation — collection fetch succeeded but some per-item detail fetches failed. |
+| `2` | Failed reconciliation — the collection fetch itself failed (network / credential error). |
+
+### Operational assumptions
+
+* **Daily scheduled run** — designed for one cron/system-timer execution per day.
+* **Idempotent** — repeated runs create new `BGGSyncRun` records and update/create the same `BoardGame` / `BGGMetadata` rows without duplication.
+* **Read-only** — never writes to BGG, never schedules periodic tasks, never touches play history.
+
+### Key semantics
+
+* **Quantity / edition / name** — local editable fields (`name`, `language`, `edition_label`, `condition`, `storage`, `purchase_date`) are preserved across sync runs; imported fields (owned, rating, bgg metadata) are updated.
+* **Expansion-with-base rule** — `BGGExpansion` rows are created only when both the expansion and its parent base `BGGMetadata` exist; orphan expansions (base not yet imported) are silently skipped.
+* **Quantity deduplication** — a single `BoardGame` is created per `bgg_id` across the entire collection; when multiple collection entries share the same `bgg_id`, the last entry wins (ownership update).
+* **Local-only preservation** — games with `imported=False` are never touched or removed.
+* **Partial / fetch failure safety** — per-item detail fetch failures are recorded but do not stop the run; the game is created with `metadata=None`. A failed collection fetch (network / credential error) sets `fetch_successful=False`, which **never** removes existing copies.
+* **Removal / restoration** — missing imported copies are soft-removed (`removed=True`) only when a full collection fetch succeeds; reappearing copies are restored.
+
+### Integration tests
+
+Fifteen scenarios in `boardgames/__tests__/test_sync_integration.py`:
+
+1. First import (full success)
+2. Repeated import (idempotent — new `BGGSyncRun`, updated `BoardGame`)
+3. Distinct BGG IDs / editions — distinct copies
+4. Quantity no-duplication (same `bgg_id`, multiple entries → single copy)
+5. Local-only game — unaffected by sync
+6. Local overrides — editable fields preserved
+7. Expansion with / without base — `BGGExpansion` rows
+8. Update — re-importing updates existing `BoardGame`
+9. Removal — missing imported copies soft-removed
+10. Restoration — reappearing copies restored
+11. Partial item failure — some detail fetches fail, `BoardGame.metadata=None`
+12. Failed collection fetch — network error, no copies removed
+13. Persisted run diagnostics — `BGGSyncRun` with full counters / diagnostics
+14. API contract — serializer fields match `BoardGame` exposed fields
+15. Admin contract — read-only permissions on all admin classes
+
 ## Loading demo fixture (development data only)
 
 A pre-seeded demo fixture is provided for local development and testing.
