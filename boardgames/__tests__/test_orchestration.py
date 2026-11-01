@@ -21,6 +21,7 @@ from unittest.mock import MagicMock, patch
 from django.test import TestCase
 
 from boardgames.bgg import BGGCollectionRecord
+from boardgames.bgg.errors import BGGAdapterError
 from boardgames.models import (
     BGGMetadata,
     BGGSyncRun,
@@ -43,16 +44,29 @@ from ..__tests__.factories import (
 # -----------------------------------------------------------------------
 
 
-def _patch_upsert_detail() -> MagicMock:
+def _patch_upsert_detail(
+    fail_upsert_bgg_ids: set[int] | None = None,
+) -> MagicMock:
     """Return a started patch for ``upsert_detail`` that creates BGGMetadata.
 
     The returned mock must be stopped after each test that calls
     ``full_reconcile``, otherwise the patch leaks to subsequent tests.
+
+    Parameters
+    ----------
+    fail_upsert_bgg_ids :
+        Optional set of bgg_id values that should raise
+        ``BGGAdapterError`` during upsert instead of succeeding.
     """
 
     from boardgames.models import BGGMetadata
 
+    if fail_upsert_bgg_ids is None:
+        fail_upsert_bgg_ids = set()
+
     def _upsert_detail_side_effect(record):
+        if record.bgg_id in fail_upsert_bgg_ids:
+            raise BGGAdapterError(f"Upsert failed for bgg_id={record.bgg_id}")
         obj, _ = BGGMetadata.objects.update_or_create(
             bgg_id=record.bgg_id,
             defaults={
@@ -70,12 +84,13 @@ def _patch_upsert_detail() -> MagicMock:
                 "categories": record.categories,
             },
         )
-        return type("UpsertResult", (), {"metadata": obj, "expansion_links": []})(
-            metadata=obj, expansion_links=[]
-        )
+        result = type("UpsertResult", (), {})()
+        result.metadata = obj
+        result.expansion_links = []
+        return result
 
     return patch(
-        "boardgames.services.canonical_upsert.upsert_detail",
+        "boardgames.services.orchestration.upsert_detail",
         side_effect=_upsert_detail_side_effect,
     )
 
@@ -243,13 +258,27 @@ def _make_adapter(
 # -----------------------------------------------------------------------
 
 
-def _run_with_upsert_patch(adapter: MagicMock, user_name: str) -> OrchestrationResult:
+def _run_with_upsert_patch(
+    adapter: MagicMock,
+    user_name: str,
+    fail_upsert_bgg_ids: set[int] | None = None,
+) -> OrchestrationResult:
     """Call full_reconcile with upsert_detail patched to create BGGMetadata.
 
     The patch is stopped after the call to avoid leaking to other tests.
+
+    Parameters
+    ----------
+    adapter :
+        Mock BGGAdapter.
+    user_name :
+        BGG user name.
+    fail_upsert_bgg_ids :
+        Optional set of bgg_id values that should raise BGGAdapterError
+        during upsert (for mixed-failure tests).
     """
 
-    with _patch_upsert_detail():
+    with _patch_upsert_detail(fail_upsert_bgg_ids=fail_upsert_bgg_ids):
         return full_reconcile(adapter, user_name)
 
 
@@ -635,3 +664,87 @@ class IntegrationWithModelsTest(TestCase):
         self.assertEqual(refreshed.language, "pl")
         self.assertFalse(refreshed.imported)
         self.assertFalse(refreshed.removed)
+
+
+# -----------------------------------------------------------------------
+# Tests: mixed failure (detail + upsert)
+# -----------------------------------------------------------------------
+
+
+class MixedFailureTest(TestCase):
+    """Verify items_failed counts only detail fetch errors, not upsert errors.
+
+    When a detail fetch fails AND a successful detail's upsert also fails,
+    ``items_failed`` must reflect only the detail fetch failure count.
+    ``error_messages`` must contain errors from both categories.
+    """
+
+    def test_items_failed_excludes_upsert_errors(self):
+        """items_failed equals detail fetch failures only, even when upsert
+        also fails for a successful item."""
+
+        collection = (
+            _make_collection_record(bgg_id=902000),  # detail succeeds
+            _make_collection_record(bgg_id=902001),  # detail fails (BGGNotFoundError)
+            _make_collection_record(bgg_id=902002),  # detail succeeds, upsert fails
+        )
+        # bgg_id 902001 will fail on detail fetch.
+        # bgg_id 902002 will succeed on detail but fail on upsert.
+        adapter = _make_adapter(collection, fail_detail_ids={902001})
+
+        # Upsert 902002 will fail (via fail_upsert_bgg_ids).
+        result = _run_with_upsert_patch(
+            adapter,
+            "testuser",
+            fail_upsert_bgg_ids={902002},
+        )
+
+        # Only 1 detail fetch failed (902001).
+        self.assertEqual(result.items_failed, 1)
+        self.assertEqual(result.bgg_sync_run.items_failed, 1)
+        self.assertEqual(result.items_fetched, 2)
+
+        # Verify error message content: one detail error, one upsert error.
+        # error_messages contains BOTH detail + upsert errors = 2 total.
+        error_texts = result.error_messages
+        self.assertEqual(len(error_texts), 2)
+
+        # Verify detail error is present (from failed detail fetch for 902001).
+        detail_errors = [m for m in error_texts if "902001" in m and "Upsert" not in m]
+        self.assertEqual(len(detail_errors), 1)
+
+        # Verify upsert error is present (from failed upsert for 902002).
+        upsert_errors = [m for m in error_texts if "Upsert" in m and "902002" in m]
+        self.assertEqual(len(upsert_errors), 1)
+
+        # Status is PARTIAL (some items failed).
+        self.assertEqual(result.bgg_sync_run.status, BGGSyncRunStatus.PARTIAL)
+        self.assertTrue(result.fetch_successful)
+
+    def test_persisted_sync_run_items_failed_matches_result(self):
+        """Persisted BGGSyncRun.items_failed matches the in-memory result."""
+
+        collection = (
+            _make_collection_record(bgg_id=902100),
+            _make_collection_record(bgg_id=902101),
+        )
+        adapter = _make_adapter(collection, fail_detail_ids={902101})
+
+        result = _run_with_upsert_patch(
+            adapter,
+            "testuser",
+            fail_upsert_bgg_ids={902100},
+        )
+
+        sync_run = BGGSyncRun.objects.get(pk=result.bgg_sync_run.pk)
+
+        # items_failed is 1 (detail failure for 902101).
+        self.assertEqual(result.items_failed, 1)
+        self.assertEqual(sync_run.items_failed, 1)
+
+        # error_messages contains both detail + upsert = 2.
+        self.assertEqual(len(result.error_messages), 2)
+        self.assertEqual(len(sync_run.error_messages.split("; ")), 2)
+
+        # Status is PARTIAL.
+        self.assertEqual(sync_run.status, BGGSyncRunStatus.PARTIAL)

@@ -173,6 +173,7 @@ def full_reconcile(
     collection_count = len(collection)
     detail_records: list[BGGDetailRecord] = []
     error_messages: list[str] = []
+    detail_failed_count = 0
 
     for idx, col_record in enumerate(collection, start=1):
         try:
@@ -184,14 +185,14 @@ def full_reconcile(
                 f"Item {idx}/{collection_count} (bgg_id={col_record.bgg_id}): "
                 f"{type(exc).__name__}: {exc}"
             )
-            sync_run.items_failed = idx - len(detail_records)
+            detail_failed_count += 1
 
         # Bounded error storage.
         if len(error_messages) > MAX_ERROR_MESSAGES:
             error_messages = error_messages[-MAX_ERROR_MESSAGES:]
 
     sync_run.items_total = collection_count
-    sync_run.items_failed = len(error_messages)
+    sync_run.items_failed = detail_failed_count
 
     # Upsert canonical metadata for each successful detail.
     for detail in detail_records:
@@ -201,6 +202,10 @@ def full_reconcile(
             error_messages.append(
                 f"Upsert bgg_id={detail.bgg_id}: {type(exc).__name__}: {exc}"
             )
+
+    # Persist detail-failure count (separate from total error_messages
+    # which also includes upsert errors).
+    sync_run.items_failed = detail_failed_count
 
     # Reconcile imported copies — only authorise removal when
     # fetch_successful=True (full collection fetch).

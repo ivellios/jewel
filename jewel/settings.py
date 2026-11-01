@@ -168,3 +168,4 @@ REST_FRAMEWORK = {
 BGG_ACCESS_TOKEN = os.environ.get("BGG_ACCESS_TOKEN")
 BGG_API_URL = os.environ.get("BGG_API_URL", "https://api.boardgamegeek.com")
 BGG_REQUEST_TIMEOUT = int(os.environ.get("BGG_REQUEST_TIMEOUT", "30"))
+BGG_USER_NAME = os.environ.get("BGG_USER_NAME")
