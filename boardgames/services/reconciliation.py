@@ -110,8 +110,15 @@ def reconcile(
 
         for bgg_id, record in bgg_to_record.items():
             # Find the first matching copy (by bgg_id) among all imported copies.
+            # Copies with metadata=None (failed detail fetch) are skipped here
+            # — they can never match an existing copy because they have no
+            # BGGMetadata FK to link against.
             matching = next(
-                (c for c in imported_copies if c.metadata.bgg_id == bgg_id),
+                (
+                    c
+                    for c in imported_copies
+                    if c.metadata and c.metadata.bgg_id == bgg_id
+                ),
                 None,
             )
 
@@ -126,9 +133,15 @@ def reconcile(
 
         # Handle removal when complete.
         if complete:
-            created_ids: set[int] = {c.metadata.bgg_id for c in result.imported_created}
+            created_ids: set[int] = {
+                c.metadata.bgg_id
+                for c in result.imported_created
+                if c.metadata is not None
+            }
 
             for copy in imported_copies:
+                if copy.metadata is None:
+                    continue
                 bgg_id = copy.metadata.bgg_id
                 # Only remove if not newly created in this run and not in
                 # the collection.  Locally-owned (imported=False) copies are
@@ -180,10 +193,17 @@ def _update_copy(copy: BoardGame, record: BGGCollectionRecord) -> None:
 
 
 def _create_copy(record: BGGCollectionRecord) -> BoardGame:
-    """Create a new imported BoardGame copy linked to existing metadata."""
+    """Create a new imported BoardGame copy linked to existing metadata.
 
-    # The metadata must already exist (ensured by upsert_detail).
-    metadata = BGGMetadata.objects.get(bgg_id=record.bgg_id)
+    If the item's detail fetch failed and no ``BGGMetadata`` row exists,
+    the ``metadata`` FK is left null — the column is intentionally
+    nullable, so partial-failure reconciliation never crashes.
+    """
+
+    try:
+        metadata = BGGMetadata.objects.get(bgg_id=record.bgg_id)
+    except BGGMetadata.DoesNotExist:
+        metadata = None
 
     return BoardGame.objects.create(
         metadata=metadata,
