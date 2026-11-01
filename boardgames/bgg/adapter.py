@@ -374,11 +374,11 @@ class BGGAdapter:
                 if inner is not None:
                     val = inner.get(field)
                     if val is not None:
-                        return val
+                        return float(val)  # type: ignore[no-any-return]
             if isinstance(_stats, dict):
                 val = _stats.get(field)
                 if val is not None:
-                    return val
+                    return float(val)  # type: ignore[no-any-return]
             return getattr(board_game, field, None)
 
         return BGGDetailRecord(
@@ -399,9 +399,9 @@ class BGGAdapter:
             rating_median=_rating("rating_median"),
             rating_stddev=_rating("rating_stddev"),
             rating_num_weights=_rating("rating_num_weights"),
-            bgg_rank=_rating("bgg_rank"),
-            boardgame_rank=_rating("boardgame_rank"),
-            users_rated=_rating("users_rated"),
+            bgg_rank=int(_rating("bgg_rank")) if _rating("bgg_rank") is not None else None,  # type: ignore[arg-type]
+            boardgame_rank=int(_rating("boardgame_rank")) if _rating("boardgame_rank") is not None else None,  # type: ignore[arg-type]
+            users_rated=int(_rating("users_rated")) if _rating("users_rated") is not None else None,  # type: ignore[arg-type]
             users_owned=(
                 getattr(board_game, "_data", {}).get("users_owned")
                 if hasattr(board_game, "_data")
@@ -436,11 +436,11 @@ class BGGAdapter:
                 if inner is not None:
                     val = inner.get(field)
                     if val is not None:
-                        return val
+                        return float(val)  # type: ignore[no-any-return]
             if isinstance(_stats, dict):
                 val = _stats.get(field)
                 if val is not None:
-                    return val
+                    return float(val)  # type: ignore[no-any-return]
             return getattr(collection_game, field, None)
 
         def _bool_like(value: Any) -> bool:
@@ -451,14 +451,14 @@ class BGGAdapter:
 
         # Read boolean-like raw values from _data (the library's properties
         # normalize 1→False in some cases).  Read the numeric fields directly.
-        _data = getattr(collection_game, "_data", collection_game.__dict__)
+        _data: dict[str, Any] = getattr(collection_game, "_data", collection_game.__dict__)
 
         def _raw_owned() -> bool:
-            val = _data.get("owned", 0)
+            val = int(_data.get("owned", 0))
             return val != 0
 
         def _raw_bool(field: str) -> bool:
-            val = _data.get(field, 0)
+            val = int(_data.get(field, 0))
             return val != 0
 
         # Numeric fields: library properties may return None; read from _data.
@@ -492,13 +492,13 @@ class BGGAdapter:
             year=collection_game.year,
             thumbnail=collection_game.thumbnail,
             image=collection_game.image,
-            bgg_rank=_rating("bgg_rank"),
-            boardgame_rank=_rating("boardgame_rank"),
+            bgg_rank=int(_rating("bgg_rank")) if _rating("bgg_rank") is not None else None,  # type: ignore[arg-type]
+            boardgame_rank=int(_rating("boardgame_rank")) if _rating("boardgame_rank") is not None else None,  # type: ignore[arg-type]
             rating_bayes_average=_rating("rating_bayes_average"),
             rating_average=_rating("rating_average"),
             rating_median=_rating("rating_median"),
             rating_stddev=_rating("rating_stddev"),
-            users_rated=_rating("users_rated"),
+            users_rated=int(_rating("users_rated")) if _rating("users_rated") is not None else None,  # type: ignore[arg-type]
         )
 
     def _normalise_batch(self, board_game: Any) -> BGGBatchRecord:
