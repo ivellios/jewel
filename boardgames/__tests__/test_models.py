@@ -223,16 +223,16 @@ class BoardGameModelTest(TestCase):
         meta = BGGMetadataFactory(name="Wingspan")
         meta_copy_count = BGGMetadata.objects.filter(name="Wingspan").count()
         BoardGameFactory(metadata=meta, imported=True)
-        self.assertEqual(BGGMetadata.objects.filter(name="Wingspan").count(), meta_copy_count)
+        self.assertEqual(
+            BGGMetadata.objects.filter(name="Wingspan").count(), meta_copy_count
+        )
 
     def test_multiple_copies_share_same_metadata(self):
         """Multiple BoardGame rows can reference the same BGGMetadata."""
         meta = BGGMetadataFactory(name="Azul")
         BoardGameFactory(metadata=meta, name="Azul copy 1")
         BoardGameFactory(metadata=meta, name="Azul copy 2")
-        self.assertEqual(
-            BoardGame.objects.filter(metadata=meta).count(), 2
-        )
+        self.assertEqual(BoardGame.objects.filter(metadata=meta).count(), 2)
 
     def test_distinct_metadata_ids_produce_distinct_copies(self):
         """Different BGG metadata IDs yield distinct BoardGame rows."""

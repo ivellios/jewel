@@ -22,6 +22,8 @@ repos:
       - id: ruff-format
 
   # ── Type checking (local/system hook, same environment as CI) ──
+  # NOTE: mypy scope intentionally excludes boardgames — deferred
+  # to final Packet 14. Ruff hooks above cover all Python files.
 
   - repo: local
     hooks:

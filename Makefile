@@ -1,6 +1,11 @@
 .PHONY: quality-fix quality-check type-check test
 
-QUALITY_PATHS = games csv_importer steam abstract jewel
+# Quality coverage: ruff + format for every path.
+# mypy scope is intentionally narrower (see ci.yml and .pre-commit-config.yaml).
+QUALITY_PATHS = games csv_importer steam abstract jewel boardgames
+
+# Narrow mypy scope: boardgames type checking deferred to Packet 14.
+MYPY_PATHS = games csv_importer steam abstract jewel
 
 quality-fix:
 	uv run ruff check --fix $(QUALITY_PATHS)
@@ -11,7 +16,7 @@ quality-check:
 	uv run ruff format --check $(QUALITY_PATHS)
 
 type-check:
-	uv run mypy --config-file pyproject.toml $(QUALITY_PATHS)
+	uv run mypy --config-file pyproject.toml $(MYPY_PATHS)
 
 test:
 	uv run pytest -v

@@ -1,12 +1,9 @@
 """Focused model tests for BGGExpansion expansion relationships."""
 
-from django.core.exceptions import ValidationError
 from django.db.utils import IntegrityError
 from django.test import TestCase
 
 from boardgames.models import BGGExpansion, BGGMetadata
-
-from .factories import BGGExpansionFactory, BGGMetadataFactory
 
 
 class BGGExpansionModelTest(TestCase):
@@ -74,9 +71,7 @@ class BGGExpansionModelTest(TestCase):
         """An expansion can link to multiple base games."""
         base1 = BGGMetadata.objects.create(bgg_id=100, name="Base A")
         base2 = BGGMetadata.objects.create(bgg_id=200, name="Base B")
-        expansion = BGGMetadata.objects.create(
-            bgg_id=300, name="Expansion Pack"
-        )
+        expansion = BGGMetadata.objects.create(bgg_id=300, name="Expansion Pack")
 
         BGGExpansion.objects.create(
             expansion=expansion,
@@ -94,10 +89,10 @@ class BGGExpansionModelTest(TestCase):
         links = list(expansion.expansions_of.all())
         self.assertEqual(len(links), 2)
         self.assertEqual(
-            sorted(links, key=lambda l: l.order),
+            sorted(links, key=lambda link: link.order),
             sorted(
                 links,
-                key=lambda l: l.order,
+                key=lambda link: link.order,
             ),
         )
 
@@ -105,16 +100,10 @@ class BGGExpansionModelTest(TestCase):
         """Order controls the sequence among multiple bases."""
         base1 = BGGMetadata.objects.create(bgg_id=400, name="Base 1")
         base2 = BGGMetadata.objects.create(bgg_id=500, name="Base 2")
-        expansion = BGGMetadata.objects.create(
-            bgg_id=600, name="Multi-Base Expansion"
-        )
+        expansion = BGGMetadata.objects.create(bgg_id=600, name="Multi-Base Expansion")
 
-        BGGExpansion.objects.create(
-            expansion=expansion, parent=base2, order=2
-        )
-        BGGExpansion.objects.create(
-            expansion=expansion, parent=base1, order=1
-        )
+        BGGExpansion.objects.create(expansion=expansion, parent=base2, order=2)
+        BGGExpansion.objects.create(expansion=expansion, parent=base1, order=1)
 
         links = list(expansion.expansions_of.order_by("order"))
         self.assertEqual(links[0].parent.bgg_id, 400)
@@ -123,12 +112,8 @@ class BGGExpansionModelTest(TestCase):
     def test_default_order_is_zero(self):
         """Unset order defaults to 0."""
         base = BGGMetadata.objects.create(bgg_id=700, name="Single Base")
-        expansion = BGGMetadata.objects.create(
-            bgg_id=800, name="Single Expansion"
-        )
-        link = BGGExpansion.objects.create(
-            expansion=expansion, parent=base
-        )
+        expansion = BGGMetadata.objects.create(bgg_id=800, name="Single Expansion")
+        link = BGGExpansion.objects.create(expansion=expansion, parent=base)
         self.assertEqual(link.order, 0)
 
     def test_exp_type_stored(self):
@@ -143,9 +128,7 @@ class BGGExpansionModelTest(TestCase):
     def test_null_exp_type_allowed(self):
         """exp_type can be None for unknown types."""
         base = BGGMetadata.objects.create(bgg_id=920, name="Base")
-        expansion = BGGMetadata.objects.create(
-            bgg_id=930, name="Expansion"
-        )
+        expansion = BGGMetadata.objects.create(bgg_id=930, name="Expansion")
         link = BGGExpansion.objects.create(
             expansion=expansion,
             parent=base,
@@ -157,28 +140,20 @@ class BGGExpansionModelTest(TestCase):
         """String uses both BGG IDs."""
         base = BGGMetadata.objects.create(bgg_id=1, name="Base")
         expansion = BGGMetadata.objects.create(bgg_id=2, name="Expansion")
-        link = BGGExpansion.objects.create(
-            expansion=expansion, parent=base
-        )
+        link = BGGExpansion.objects.create(expansion=expansion, parent=base)
         self.assertEqual(str(link), "BGG#2 -> BGG#1")
 
     def test_expansions_of_reverse_relation(self):
         """The reverse relation collects all bases for an expansion."""
         base1 = BGGMetadata.objects.create(bgg_id=1000, name="Base A")
         base2 = BGGMetadata.objects.create(bgg_id=1100, name="Base B")
-        expansion = BGGMetadata.objects.create(
-            bgg_id=1200, name="Expansion"
-        )
+        expansion = BGGMetadata.objects.create(bgg_id=1200, name="Expansion")
 
-        BGGExpansion.objects.create(
-            expansion=expansion, parent=base1, order=1
-        )
-        BGGExpansion.objects.create(
-            expansion=expansion, parent=base2, order=2
-        )
+        BGGExpansion.objects.create(expansion=expansion, parent=base1, order=1)
+        BGGExpansion.objects.create(expansion=expansion, parent=base2, order=2)
 
         ids = list(expansion.expansions_of.values_list("parent__bgg_id"))
-        self.assertEqual(set(id[0] for id in ids), {1000, 1100})
+        self.assertEqual({x[0] for x in ids}, {1000, 1100})
 
     def test_parent_reverse_relation(self):
         """The reverse relation lists expansions of a base game."""
@@ -186,24 +161,18 @@ class BGGExpansionModelTest(TestCase):
         exp_a = BGGMetadata.objects.create(bgg_id=2100, name="Expansion A")
         exp_b = BGGMetadata.objects.create(bgg_id=2200, name="Expansion B")
 
-        BGGExpansion.objects.create(
-            expansion=exp_a, parent=base
-        )
-        BGGExpansion.objects.create(
-            expansion=exp_b, parent=base
-        )
+        BGGExpansion.objects.create(expansion=exp_a, parent=base)
+        BGGExpansion.objects.create(expansion=exp_b, parent=base)
 
         ids = list(base.is_expanded_by.values_list("expansion__bgg_id"))
-        self.assertEqual(set(id[0] for id in ids), {2100, 2200})
+        self.assertEqual({x[0] for x in ids}, {2100, 2200})
 
     def test_cascade_delete_expansion(self):
         """Deleting an expansion game removes its expansion links."""
         base = BGGMetadata.objects.create(bgg_id=3000, name="Base")
         expansion = BGGMetadata.objects.create(bgg_id=3100, name="Expansion")
 
-        BGGExpansion.objects.create(
-            expansion=expansion, parent=base
-        )
+        BGGExpansion.objects.create(expansion=expansion, parent=base)
         self.assertEqual(BGGExpansion.objects.count(), 1)
 
         expansion.delete()
@@ -214,9 +183,7 @@ class BGGExpansionModelTest(TestCase):
         base = BGGMetadata.objects.create(bgg_id=4000, name="Base")
         expansion = BGGMetadata.objects.create(bgg_id=4100, name="Expansion")
 
-        BGGExpansion.objects.create(
-            expansion=expansion, parent=base
-        )
+        BGGExpansion.objects.create(expansion=expansion, parent=base)
         self.assertEqual(BGGExpansion.objects.count(), 1)
 
         base.delete()

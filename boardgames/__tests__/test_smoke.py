@@ -29,9 +29,7 @@ class BoardgamesAppSmokeTest(TestCase):
         )
 
         # Migrations directory should now exist.
-        migrations_dir = os.path.join(
-            os.path.dirname(__file__), "..", "migrations"
-        )
+        migrations_dir = os.path.join(os.path.dirname(__file__), "..", "migrations")
         self.assertTrue(os.path.isdir(migrations_dir))
 
         # Verify models are importable.
