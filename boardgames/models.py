@@ -39,13 +39,29 @@ class BGGMetadata(models.Model):
         validators=[MinValueValidator(1)],
     )
     playingtime = models.PositiveIntegerField(null=True, blank=True)
+    min_playing_time = models.PositiveIntegerField(null=True, blank=True)
+    max_playing_time = models.PositiveIntegerField(null=True, blank=True)
+    item_type = models.CharField(max_length=80, null=True, blank=True)
     comment = models.TextField(null=True, blank=True)
+    bgg_url = models.URLField(max_length=2000, null=True, blank=True)
     thumbnail = models.URLField(max_length=2000, null=True, blank=True)
     image = models.URLField(max_length=2000, null=True, blank=True)
     publishers = models.TextField(null=True, blank=True)
     designers = models.TextField(null=True, blank=True)
     mechanics = models.TextField(null=True, blank=True)
     categories = models.TextField(null=True, blank=True)
+    alternative_names = models.JSONField(null=True, blank=True)
+    families = models.JSONField(null=True, blank=True)
+    rating_bayes_average = models.FloatField(null=True, blank=True)
+    rating_average = models.FloatField(null=True, blank=True)
+    rating_median = models.FloatField(null=True, blank=True)
+    rating_stddev = models.FloatField(null=True, blank=True)
+    rating_num_weights = models.FloatField(null=True, blank=True)
+    bgg_rank = models.PositiveIntegerField(null=True, blank=True)
+    boardgame_rank = models.PositiveIntegerField(null=True, blank=True)
+    users_rated = models.PositiveIntegerField(null=True, blank=True)
+    users_owned = models.PositiveIntegerField(null=True, blank=True)
+    plays_count = models.PositiveIntegerField(null=True, blank=True)
 
     class Meta:
         ordering = ["bgg_id"]
@@ -159,6 +175,54 @@ class BGGSyncRun(models.Model):
 
     def __str__(self) -> str:
         return f"BGGSyncRun#{self.pk} ({self.status})"
+
+
+class BGGCollectionObservation(models.Model):
+    """Latest collection state for the one configured BGG account.
+
+    This is deliberately one-to-one with canonical metadata: BGG collection
+    quantity is an observation of the configured account, not local physical
+    copy identity. Nullable source fields preserve the distinction between an
+    omitted source value and an explicit false or zero value.
+    """
+
+    metadata = models.OneToOneField(
+        BGGMetadata,
+        on_delete=models.CASCADE,
+        related_name="collection_observation",
+        db_constraint=True,
+    )
+    sync_run = models.ForeignKey(
+        BGGSyncRun,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="collection_observations",
+        db_constraint=True,
+    )
+    quantity = models.PositiveIntegerField(null=True, blank=True)
+    rating = models.PositiveSmallIntegerField(null=True, blank=True)
+    numplays = models.PositiveIntegerField(null=True, blank=True)
+    owned = models.BooleanField(null=True, blank=True)
+    prev_owned = models.BooleanField(null=True, blank=True)
+    wishlist = models.BooleanField(null=True, blank=True)
+    wishlist_priority = models.PositiveSmallIntegerField(null=True, blank=True)
+    want = models.BooleanField(null=True, blank=True)
+    want_to_play = models.BooleanField(null=True, blank=True)
+    want_to_buy = models.BooleanField(null=True, blank=True)
+    preordered = models.BooleanField(null=True, blank=True)
+    for_trade = models.BooleanField(null=True, blank=True)
+    comment = models.TextField(null=True, blank=True)
+    last_modified = models.CharField(max_length=100, null=True, blank=True)
+    observed_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["metadata__bgg_id"]
+        verbose_name = "BGG collection observation"
+        verbose_name_plural = "BGG collection observations"
+
+    def __str__(self) -> str:
+        return f"BGG collection observation for BGG#{self.metadata.bgg_id}"
 
 
 class BoardGame(CollectionItem):

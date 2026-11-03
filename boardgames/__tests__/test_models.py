@@ -4,9 +4,20 @@ from django.core.exceptions import ValidationError
 from django.db.utils import IntegrityError
 from django.test import TestCase
 
-from boardgames.models import BGGMetadata, BGGSyncRun, BGGSyncRunStatus, BoardGame
+from boardgames.models import (
+    BGGCollectionObservation,
+    BGGMetadata,
+    BGGSyncRun,
+    BGGSyncRunStatus,
+    BoardGame,
+)
 
-from .factories import BGGMetadataFactory, BoardGameFactory
+from .factories import (
+    BGGCollectionObservationFactory,
+    BGGMetadataFactory,
+    BGGSyncRunFactory,
+    BoardGameFactory,
+)
 
 
 class BGGMetadataModelTest(TestCase):
@@ -28,13 +39,29 @@ class BGGMetadataModelTest(TestCase):
         meta = BGGMetadataFactory(name=None, yearpublished=None, minplayers=None)
         meta.maxplayers = None
         meta.playingtime = None
+        meta.min_playing_time = None
+        meta.max_playing_time = None
+        meta.item_type = None
         meta.comment = None
+        meta.bgg_url = None
         meta.thumbnail = None
         meta.image = None
         meta.publishers = None
         meta.designers = None
         meta.mechanics = None
         meta.categories = None
+        meta.alternative_names = None
+        meta.families = None
+        meta.rating_bayes_average = None
+        meta.rating_average = None
+        meta.rating_median = None
+        meta.rating_stddev = None
+        meta.rating_num_weights = None
+        meta.bgg_rank = None
+        meta.boardgame_rank = None
+        meta.users_rated = None
+        meta.users_owned = None
+        meta.plays_count = None
         meta.save()
 
         # Reload and verify all fields are None or blank.
@@ -44,13 +71,29 @@ class BGGMetadataModelTest(TestCase):
         self.assertIsNone(refreshed.minplayers)
         self.assertIsNone(refreshed.maxplayers)
         self.assertIsNone(refreshed.playingtime)
+        self.assertIsNone(refreshed.min_playing_time)
+        self.assertIsNone(refreshed.max_playing_time)
+        self.assertIsNone(refreshed.item_type)
         self.assertIsNone(refreshed.comment)
+        self.assertIsNone(refreshed.bgg_url)
         self.assertIsNone(refreshed.thumbnail)
         self.assertIsNone(refreshed.image)
         self.assertIsNone(refreshed.publishers)
         self.assertIsNone(refreshed.designers)
         self.assertIsNone(refreshed.mechanics)
         self.assertIsNone(refreshed.categories)
+        self.assertIsNone(refreshed.alternative_names)
+        self.assertIsNone(refreshed.families)
+        self.assertIsNone(refreshed.rating_bayes_average)
+        self.assertIsNone(refreshed.rating_average)
+        self.assertIsNone(refreshed.rating_median)
+        self.assertIsNone(refreshed.rating_stddev)
+        self.assertIsNone(refreshed.rating_num_weights)
+        self.assertIsNone(refreshed.bgg_rank)
+        self.assertIsNone(refreshed.boardgame_rank)
+        self.assertIsNone(refreshed.users_rated)
+        self.assertIsNone(refreshed.users_owned)
+        self.assertIsNone(refreshed.plays_count)
 
     def test_minplayers_validator(self):
         """minplayers rejects values below 1."""
@@ -154,6 +197,64 @@ class BGGSyncRunModelTest(TestCase):
         self.assertEqual(refreshed.items_failed, 10)
         self.assertIsNotNone(refreshed.error_messages)
         self.assertIsNotNone(refreshed.diagnostics)
+
+
+class BGGCollectionObservationModelTest(TestCase):
+    """Verify configured-account collection state stays separate from copies."""
+
+    def test_observation_tracks_quantity_and_flags_for_canonical_game(self):
+        metadata = BGGMetadataFactory()
+        sync_run = BGGSyncRunFactory()
+        observation = BGGCollectionObservationFactory(
+            metadata=metadata,
+            sync_run=sync_run,
+            quantity=3,
+            owned=True,
+            wishlist=False,
+            want_to_play=True,
+        )
+
+        self.assertEqual(observation.metadata, metadata)
+        self.assertEqual(observation.sync_run, sync_run)
+        self.assertEqual(observation.quantity, 3)
+        self.assertTrue(observation.owned)
+        self.assertFalse(observation.wishlist)
+        self.assertTrue(observation.want_to_play)
+        self.assertEqual(metadata.copies.count(), 0)
+
+    def test_only_one_latest_observation_exists_per_canonical_game(self):
+        metadata = BGGMetadataFactory()
+        BGGCollectionObservationFactory(metadata=metadata)
+
+        with self.assertRaises(IntegrityError):
+            BGGCollectionObservationFactory(metadata=metadata)
+
+    def test_observation_source_values_can_be_omitted(self):
+        observation = BGGCollectionObservationFactory(
+            quantity=None,
+            rating=None,
+            numplays=None,
+            owned=None,
+            wishlist=None,
+            want_to_play=None,
+        )
+
+        observation.refresh_from_db()
+        self.assertIsNone(observation.quantity)
+        self.assertIsNone(observation.rating)
+        self.assertIsNone(observation.numplays)
+        self.assertIsNone(observation.owned)
+        self.assertIsNone(observation.wishlist)
+        self.assertIsNone(observation.want_to_play)
+
+    def test_quantity_rejects_negative_values(self):
+        observation = BGGCollectionObservation(
+            metadata=BGGMetadataFactory(),
+            quantity=-1,
+        )
+
+        with self.assertRaises(ValidationError):
+            observation.full_clean()
 
 
 class BoardGameModelTest(TestCase):

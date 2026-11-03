@@ -2,7 +2,14 @@
 
 import factory
 
-from ..models import BGGExpansion, BGGMetadata, BGGSyncRun, BGGSyncRunStatus, BoardGame
+from ..models import (
+    BGGCollectionObservation,
+    BGGExpansion,
+    BGGMetadata,
+    BGGSyncRun,
+    BGGSyncRunStatus,
+    BoardGame,
+)
 
 
 class BGGMetadataFactory(factory.django.DjangoModelFactory):
@@ -15,6 +22,14 @@ class BGGMetadataFactory(factory.django.DjangoModelFactory):
     minplayers = factory.Faker("random_int", min=1, max=10)
     maxplayers = factory.Faker("random_int", min=1, max=12)
     playingtime = factory.Faker("random_int", min=10, max=480)
+    min_playing_time = factory.Faker("random_int", min=10, max=240)
+    max_playing_time = factory.Faker("random_int", min=240, max=480)
+    item_type = "boardgame"
+    bgg_url = factory.LazyAttribute(
+        lambda metadata: f"https://boardgamegeek.com/boardgame/{metadata.bgg_id}"
+    )
+    alternative_names = factory.LazyFunction(list)
+    families = factory.LazyFunction(list)
 
 
 class BGGSyncRunFactory(factory.django.DjangoModelFactory):
@@ -27,6 +42,18 @@ class BGGSyncRunFactory(factory.django.DjangoModelFactory):
     items_fetched = factory.Faker("random_int", min=0, max=5000)
     items_failed = 0
     diagnostics = factory.Faker("sentence")
+
+
+class BGGCollectionObservationFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = BGGCollectionObservation
+
+    metadata = factory.SubFactory(BGGMetadataFactory)
+    sync_run = factory.SubFactory(BGGSyncRunFactory)
+    quantity = factory.Faker("random_int", min=0, max=10)
+    owned = True
+    wishlist = False
+    numplays = factory.Faker("random_int", min=0, max=100)
 
 
 class BGGExpansionFactory(factory.django.DjangoModelFactory):

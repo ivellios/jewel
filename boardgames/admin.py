@@ -93,6 +93,22 @@ class BGGMetadataAdmin(admin.ModelAdmin):
         "designers",
         "mechanics",
         "categories",
+        "alternative_names",
+        "bgg_rank",
+        "bgg_url",
+        "boardgame_rank",
+        "families",
+        "item_type",
+        "min_playing_time",
+        "max_playing_time",
+        "rating_bayes_average",
+        "rating_average",
+        "rating_median",
+        "rating_stddev",
+        "rating_num_weights",
+        "users_rated",
+        "users_owned",
+        "plays_count",
     ]
     # Disable adding/editing entirely: this is source-of-truth data.
     exclude = []
