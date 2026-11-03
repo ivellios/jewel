@@ -1,7 +1,7 @@
 """Django management command: sync_bgg_collection.
 
 Orchestration entry-point that reads BGG credentials from Django settings,
-builds a ``BGGAdapter``, and calls the full-reconciliation pipeline.
+builds a ``BGGRepository``, and calls the full-reconciliation pipeline.
 
 Exit codes
 ----------
@@ -83,7 +83,7 @@ Example output (failed):
 from django.conf import settings
 from django.core.management.base import BaseCommand
 
-from boardgames.bgg.adapter import BGGAdapter
+from boardgames.bgg.repository import BGGRepository
 from boardgames.services import full_reconcile
 
 
@@ -124,14 +124,14 @@ class Command(BaseCommand):
             self.stderr.write(f"Error: Missing required settings: {', '.join(missing)}")
             raise SystemExit(2)
 
-        # Build adapter and run full reconciliation.
-        adapter = BGGAdapter(
+        # Build the repository boundary and run full reconciliation.
+        repository = BGGRepository(
             access_token=access_token,
             api_url=api_url,
             timeout=request_timeout,
         )
 
-        result = full_reconcile(adapter, user_name)
+        result = full_reconcile(repository, user_name)
 
         # Print diagnostics.
         self._print_result(result)

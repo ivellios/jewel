@@ -1,6 +1,6 @@
 """Full-reconciliation orchestration service.
 
-Chains the existing adapter / upsert / reconcile layer into a single
+Chains the BGG repository / upsert / reconcile layer into a single
 synchronous management command:
 
     BGG collection fetch → per-item detail + upsert → reconciliation → BGGSyncRun
@@ -38,7 +38,7 @@ from datetime import datetime, timezone
 
 from django.db import transaction
 
-from boardgames.bgg import BGGDetailRecord
+from boardgames.bgg import BGGDetailRecord, BGGRepositoryProtocol
 from boardgames.bgg.errors import (
     BGGAdapterError,
     BGGCredentialMissingError,
@@ -86,15 +86,15 @@ class OrchestrationResult:
 
 
 def full_reconcile(
-    adapter,  # BGGAdapter
+    repository: BGGRepositoryProtocol,
     user_name: str,
 ) -> OrchestrationResult:
     """Run the full reconciliation pipeline and persist diagnostics.
 
     Parameters
     ----------
-    adapter :
-        A configured :class:`boardgames.bgg.BGGAdapter` instance.
+    repository :
+        A configured :class:`boardgames.bgg.BGGRepositoryProtocol` instance.
     user_name :
         The BGG user name whose collection to fetch.
 
@@ -111,7 +111,7 @@ def full_reconcile(
     start_time = time.time()
 
     try:
-        collection = adapter.get_collection(user_name)
+        collection = repository.get_collection(user_name)
         fetch_successful = True
     except (BGGNetworkError, BGGCredentialMissingError) as exc:
         # Collection fetch failed — never authorise removal.
@@ -177,7 +177,7 @@ def full_reconcile(
 
     for idx, col_record in enumerate(collection, start=1):
         try:
-            detail = adapter.get_detail(col_record.bgg_id)
+            detail = repository.get_detail(col_record.bgg_id)
             detail_records.append(detail)
             sync_run.items_fetched = idx
         except (BGGNotFoundError, BGGNetworkError, BGGAdapterError) as exc:

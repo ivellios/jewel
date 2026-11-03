@@ -1,13 +1,15 @@
-"""BoardGameGeek adapter — Jewel-owned normalisation layer."""
+"""BoardGameGeek transport and Jewel-owned normalization boundaries."""
 
 from .adapter import (
-    BGGAdapter,
     BGGBatchRecord,
     BGGCollectionRecord,
     BGGDetailRecord,
-    BGGExpansionRecord,
+    BGGPlaySessionRecord,
     BGGPlaysRecord,
-    BGGRatingRecord,
+    normalize_batch_item,
+    normalize_collection_item,
+    normalize_detail,
+    normalize_plays,
 )
 from .client import DEFAULT_BGG_API_URL, BGGClient
 from .errors import (
@@ -16,19 +18,26 @@ from .errors import (
     BGGNetworkError,
     BGGNotFoundError,
 )
+from .repository import BGGExpansionRecord, BGGRepository, BGGRepositoryProtocol
 
 __all__ = [
-    # Adapter
-    "BGGAdapter",
+    # Transport and repository
     "BGGClient",
     "DEFAULT_BGG_API_URL",
+    "BGGRepository",
+    "BGGRepositoryProtocol",
     # Records
     "BGGBatchRecord",
     "BGGCollectionRecord",
     "BGGDetailRecord",
     "BGGExpansionRecord",
+    "BGGPlaySessionRecord",
     "BGGPlaysRecord",
-    "BGGRatingRecord",
+    # Normalizers
+    "normalize_batch_item",
+    "normalize_collection_item",
+    "normalize_detail",
+    "normalize_plays",
     # Errors
     "BGGAdapterError",
     "BGGCredentialMissingError",

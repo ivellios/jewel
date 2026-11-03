@@ -138,7 +138,7 @@ def _make_adapter(
     fail_collection: bool = False,
     fail_detail_ids: set[int] | None = None,
 ) -> MagicMock:
-    """Build a mock BGGAdapter with predictable behaviour."""
+    """Build a mock BGGRepository with predictable behaviour."""
 
     from boardgames.bgg import BGGDetailRecord
     from boardgames.bgg.errors import BGGNetworkError, BGGNotFoundError

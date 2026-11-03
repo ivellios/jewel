@@ -83,8 +83,7 @@ def upsert_detail(record: BGGDetailRecord) -> UpsertResult:
     Parameters
     ----------
     record :
-        A normalised detail record produced by
-        :class:`boardgames.bgg.BGGAdapter`.
+        A normalised detail record returned by the BGG repository boundary.
 
     Returns
     -------

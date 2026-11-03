@@ -67,14 +67,21 @@ class BGGClient:
         ids: Iterable[int] | None = None,
         **filters: Any,
     ) -> Any:
-        """Return the raw collection response."""
-        return self._call(
+        """Return the raw collection item responses.
+
+        The vendor collection wrapper keeps its entries in a private
+        ``_items`` attribute.  Extracting it here keeps that vendor detail in
+        the transport boundary while leaving repository callers with only raw
+        item objects to normalize.
+        """
+        collection = self._call(
             user_name,
             self._client.collection,
             user_name=user_name,
             ids=list(ids) if ids else None,
             **filters,
         )
+        return tuple(collection._items)
 
     def plays(
         self,

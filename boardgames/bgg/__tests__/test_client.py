@@ -62,6 +62,16 @@ def test_client_returns_raw_vendor_response(vendor_client, token):
     vendor.game.assert_called_once_with(game_id=42)
 
 
+def test_collection_returns_raw_items_not_the_vendor_wrapper(vendor_client, token):
+    vendor, _ = vendor_client
+    raw_item = object()
+    vendor.collection.return_value = MagicMock(_items=(raw_item,))
+    client = BGGClient(access_token=token)
+
+    assert client.collection("player") == (raw_item,)
+    vendor.collection.assert_called_once_with(user_name="player", ids=None)
+
+
 def test_missing_credential_is_a_jewel_error():
     with pytest.raises(BGGCredentialMissingError):
         BGGClient(access_token="")

@@ -145,7 +145,7 @@ def _make_adapter(
     fail_collection: bool = False,
     fail_detail_ids: set[int] | None = None,
 ) -> MagicMock:
-    """Build a mock BGGAdapter with predictable behaviour.
+    """Build a mock BGG repository with predictable behaviour.
 
     Parameters
     ----------
@@ -270,7 +270,7 @@ def _run_with_upsert_patch(
     Parameters
     ----------
     adapter :
-        Mock BGGAdapter.
+        Mock BGG repository.
     user_name :
         BGG user name.
     fail_upsert_bgg_ids :

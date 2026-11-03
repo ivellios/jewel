@@ -66,13 +66,13 @@ def _make_collection_record(
     )
 
 
-def _make_adapter(
+def _make_repository(
     collection: tuple[BGGCollectionRecord, ...] = (),
     detail_records: tuple[dict, ...] | None = None,
     fail_collection: bool = False,
     fail_detail_ids: set[int] | None = None,
 ) -> MagicMock:
-    """Build a mock BGGAdapter with predictable behaviour."""
+    """Build a mock BGG repository with predictable behaviour."""
 
     from boardgames.bgg.errors import BGGNetworkError, BGGNotFoundError
 
@@ -179,7 +179,7 @@ class MissingSettingsTest(TestCase):
 
         with (
             override_settings(BGG_ACCESS_TOKEN=None),
-            patch("boardgames.management.commands.sync_bgg_collection.BGGAdapter"),
+            patch("boardgames.management.commands.sync_bgg_collection.BGGRepository"),
         ):
             out = StringIO()
             err = StringIO()
@@ -198,7 +198,7 @@ class MissingSettingsTest(TestCase):
 
         with (
             override_settings(BGG_USER_NAME=None),
-            patch("boardgames.management.commands.sync_bgg_collection.BGGAdapter"),
+            patch("boardgames.management.commands.sync_bgg_collection.BGGRepository"),
         ):
             out = StringIO()
             err = StringIO()
@@ -217,7 +217,7 @@ class MissingSettingsTest(TestCase):
 
         with (
             override_settings(BGG_ACCESS_TOKEN=None, BGG_USER_NAME=None),
-            patch("boardgames.management.commands.sync_bgg_collection.BGGAdapter"),
+            patch("boardgames.management.commands.sync_bgg_collection.BGGRepository"),
         ):
             out = StringIO()
             err = StringIO()
@@ -248,10 +248,10 @@ class ExitCodesTest(TestCase):
             _make_collection_record(bgg_id=901000),
             _make_collection_record(bgg_id=901001),
         )
-        adapter = _make_adapter(collection)
+        adapter = _make_repository(collection)
 
         with patch(
-            "boardgames.management.commands.sync_bgg_collection.BGGAdapter",
+            "boardgames.management.commands.sync_bgg_collection.BGGRepository",
             return_value=adapter,
         ):
             out = StringIO()
@@ -274,13 +274,13 @@ class ExitCodesTest(TestCase):
             _make_collection_record(bgg_id=901101),
             _make_collection_record(bgg_id=901102),
         )
-        adapter = _make_adapter(
+        adapter = _make_repository(
             collection,
             fail_detail_ids={901101},
         )
 
         with patch(
-            "boardgames.management.commands.sync_bgg_collection.BGGAdapter",
+            "boardgames.management.commands.sync_bgg_collection.BGGRepository",
             return_value=adapter,
         ):
             out = StringIO()
@@ -297,10 +297,10 @@ class ExitCodesTest(TestCase):
     def test_failed_collection_exits_two(self):
         """Failed collection fetch → SystemExit(2)."""
 
-        adapter = _make_adapter(fail_collection=True)
+        adapter = _make_repository(fail_collection=True)
 
         with patch(
-            "boardgames.management.commands.sync_bgg_collection.BGGAdapter",
+            "boardgames.management.commands.sync_bgg_collection.BGGRepository",
             return_value=adapter,
         ):
             out = StringIO()
@@ -331,10 +331,10 @@ class DiagnosticsOutputTest(TestCase):
             _make_collection_record(bgg_id=901200),
             _make_collection_record(bgg_id=901201),
         )
-        adapter = _make_adapter(collection)
+        adapter = _make_repository(collection)
 
         with patch(
-            "boardgames.management.commands.sync_bgg_collection.BGGAdapter",
+            "boardgames.management.commands.sync_bgg_collection.BGGRepository",
             return_value=adapter,
         ):
             out = StringIO()
@@ -363,13 +363,13 @@ class DiagnosticsOutputTest(TestCase):
             _make_collection_record(bgg_id=901300),
             _make_collection_record(bgg_id=901301),
         )
-        adapter = _make_adapter(
+        adapter = _make_repository(
             collection,
             fail_detail_ids={901301},
         )
 
         with patch(
-            "boardgames.management.commands.sync_bgg_collection.BGGAdapter",
+            "boardgames.management.commands.sync_bgg_collection.BGGRepository",
             return_value=adapter,
         ):
             out = StringIO()
@@ -386,10 +386,10 @@ class DiagnosticsOutputTest(TestCase):
     def test_failed_collection_prints_error_to_stderr(self):
         """Failed (collection) prints error to stderr."""
 
-        adapter = _make_adapter(fail_collection=True)
+        adapter = _make_repository(fail_collection=True)
 
         with patch(
-            "boardgames.management.commands.sync_bgg_collection.BGGAdapter",
+            "boardgames.management.commands.sync_bgg_collection.BGGRepository",
             return_value=adapter,
         ):
             out = StringIO()
@@ -415,11 +415,11 @@ class SyncRunPersistenceAfterCommandTest(TestCase):
         """Full success leaves a BGGSyncRun with status=full."""
 
         collection = (_make_collection_record(bgg_id=901400),)
-        adapter = _make_adapter(collection)
+        adapter = _make_repository(collection)
 
         with (
             patch(
-                "boardgames.management.commands.sync_bgg_collection.BGGAdapter",
+                "boardgames.management.commands.sync_bgg_collection.BGGRepository",
                 return_value=adapter,
             ),
             self.assertRaises(SystemExit),
@@ -438,14 +438,14 @@ class SyncRunPersistenceAfterCommandTest(TestCase):
             _make_collection_record(bgg_id=901500),
             _make_collection_record(bgg_id=901501),
         )
-        adapter = _make_adapter(
+        adapter = _make_repository(
             collection,
             fail_detail_ids={901501},
         )
 
         with (
             patch(
-                "boardgames.management.commands.sync_bgg_collection.BGGAdapter",
+                "boardgames.management.commands.sync_bgg_collection.BGGRepository",
                 return_value=adapter,
             ),
             self.assertRaises(SystemExit),
@@ -460,11 +460,11 @@ class SyncRunPersistenceAfterCommandTest(TestCase):
     def test_failed_collection_persists_sync_run(self):
         """Failed collection leaves a BGGSyncRun with status=failed."""
 
-        adapter = _make_adapter(fail_collection=True)
+        adapter = _make_repository(fail_collection=True)
 
         with (
             patch(
-                "boardgames.management.commands.sync_bgg_collection.BGGAdapter",
+                "boardgames.management.commands.sync_bgg_collection.BGGRepository",
                 return_value=adapter,
             ),
             self.assertRaises(SystemExit),
