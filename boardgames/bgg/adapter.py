@@ -8,14 +8,8 @@ from dataclasses import dataclass
 from datetime import date
 from typing import Any
 
-from boardgamegeek import BGGClient, BGGError
-
-from .errors import (
-    BGGAdapterError,
-    BGGCredentialMissingError,
-    BGGNetworkError,
-    BGGNotFoundError,
-)
+from .client import DEFAULT_BGG_API_URL, BGGClient
+from .errors import BGGAdapterError
 
 logger = logging.getLogger(__name__)
 
@@ -155,21 +149,14 @@ class BGGAdapter:
     def __init__(
         self,
         access_token: str,
-        api_url: str = "https://api.boardgamegeek.com",
+        api_url: str = DEFAULT_BGG_API_URL,
         timeout: float = 30,
     ) -> None:
-        if not access_token:
-            raise BGGCredentialMissingError(
-                "BGG access_token is required; "
-                "set BGG_ACCESS_TOKEN before creating BGGAdapter."
-            )
-
         self._client = BGGClient(
             access_token=access_token,
+            api_url=api_url,
             timeout=timeout,
         )
-        self._api_url = api_url
-        self._timeout = timeout
 
     # ------------------------------------------------------------------
     # Detail
@@ -181,10 +168,7 @@ class BGGAdapter:
         Raises ``BGGNotFoundError`` when the game does not exist.
         Raises ``BGGNetworkError`` for API / network failures.
         """
-        try:
-            board_game = self._client.game(game_id=bgg_id)
-        except BGGError as exc:
-            self._handle_bgge_error(exc, bgg_id)
+        board_game = self._client.game(game_id=bgg_id)
 
         return self._normalise_detail(bgg_id, board_game)
 
@@ -203,14 +187,11 @@ class BGGAdapter:
         When *ids* is given, fetches only those items; otherwise returns
         the full collection (filtered by *filters*).
         """
-        try:
-            collection = self._client.collection(
-                user_name=user_name,
-                ids=list(ids) if ids else None,
-                **filters,
-            )
-        except BGGError as exc:
-            self._handle_bgge_error(exc, user_name)
+        collection = self._client.collection(
+            user_name=user_name,
+            ids=ids,
+            **filters,
+        )
 
         return tuple(
             self._normalise_collection_item(item) for item in collection._items
@@ -229,16 +210,13 @@ class BGGAdapter:
         subtype: str = "boardgame",
     ) -> BGGPlaysRecord:
         """Fetch aggregated play counts (and optional sessions)."""
-        try:
-            plays_obj = self._client.plays(
-                name=name,
-                game_id=bgg_id,
-                min_date=min_date,
-                max_date=max_date,
-                subtype=subtype,
-            )
-        except BGGError as exc:
-            self._handle_bgge_error(exc, bgg_id or name or "plays")
+        plays_obj = self._client.plays(
+            name=name,
+            game_id=bgg_id,
+            min_date=min_date,
+            max_date=max_date,
+            subtype=subtype,
+        )
 
         sessions: tuple[dict[str, Any], ...] = tuple(
             {
@@ -265,10 +243,7 @@ class BGGAdapter:
 
     def get_expansions(self, bgg_id: int) -> tuple[BGGExpansionRecord, ...]:
         """Fetch expansion and expanded-by IDs for a game."""
-        try:
-            board_game = self._client.game(game_id=bgg_id)
-        except BGGError as exc:
-            self._handle_bgge_error(exc, bgg_id)
+        board_game = self._client.game(game_id=bgg_id)
 
         expansion_ids: list[int] = [exp.id for exp in board_game._expansions]
         expands_ids: list[int] = [exp.id for exp in board_game._expands]
@@ -278,7 +253,7 @@ class BGGAdapter:
             try:
                 bg = self._client.game(game_id=eid)
                 records.append(BGGExpansionRecord(id=bg.id, name=bg.name))
-            except BGGError:
+            except BGGAdapterError:
                 # If expansion fetch fails, store just the ID with placeholder
                 records.append(BGGExpansionRecord(id=eid, name=""))
 
@@ -286,7 +261,7 @@ class BGGAdapter:
             try:
                 bg = self._client.game(game_id=eid)
                 records.append(BGGExpansionRecord(id=bg.id, name=bg.name))
-            except BGGError:
+            except BGGAdapterError:
                 records.append(BGGExpansionRecord(id=eid, name=""))
 
         return tuple(records)
@@ -301,10 +276,7 @@ class BGGAdapter:
         if not ids:
             return ()
 
-        try:
-            board_games = self._client.game_list(ids)
-        except BGGError as exc:
-            self._handle_bgge_error(exc, game_ids)
+        board_games = self._client.game_list(ids)
 
         return tuple(self._normalise_batch(game) for game in board_games)
 
@@ -315,30 +287,13 @@ class BGGAdapter:
         exact: bool = False,
     ) -> tuple[BGGBatchRecord, ...]:
         """Search for games matching *query*."""
-        try:
-            results = self._client.search(query, search_type, exact)
-        except BGGError as exc:
-            self._handle_bgge_error(exc, query)
+        results = self._client.search(query, search_type, exact)
 
         return tuple(self._normalise_search_result(r) for r in results)
 
     # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
-
-    def _handle_bgge_error(self, exc: BGGError, context: Any) -> None:
-        """Map library exceptions to our own error hierarchy."""
-        from boardgamegeek import (
-            BGGApiError,
-            BGGApiTimeoutError,
-            BGGItemNotFoundError,
-        )
-
-        if isinstance(exc, BGGItemNotFoundError):
-            raise BGGNotFoundError(f"BGG resource not found: {context}") from exc
-        if isinstance(exc, BGGApiError | BGGApiTimeoutError):
-            raise BGGNetworkError(f"Network / API error for {context}: {exc}") from exc
-        raise BGGAdapterError(f"Unexpected BGG error for {context}: {exc}") from exc
 
     def _normalise_detail(self, bgg_id: int, board_game: Any) -> BGGDetailRecord:
         """Convert a third-party ``BoardGame`` into a ``BGGDetailRecord``."""
@@ -399,9 +354,15 @@ class BGGAdapter:
             rating_median=_rating("rating_median"),
             rating_stddev=_rating("rating_stddev"),
             rating_num_weights=_rating("rating_num_weights"),
-            bgg_rank=int(_rating("bgg_rank")) if _rating("bgg_rank") is not None else None,  # type: ignore[arg-type]
-            boardgame_rank=int(_rating("boardgame_rank")) if _rating("boardgame_rank") is not None else None,  # type: ignore[arg-type]
-            users_rated=int(_rating("users_rated")) if _rating("users_rated") is not None else None,  # type: ignore[arg-type]
+            bgg_rank=int(_rating("bgg_rank"))
+            if _rating("bgg_rank") is not None
+            else None,  # type: ignore[arg-type]
+            boardgame_rank=int(_rating("boardgame_rank"))
+            if _rating("boardgame_rank") is not None
+            else None,  # type: ignore[arg-type]
+            users_rated=int(_rating("users_rated"))
+            if _rating("users_rated") is not None
+            else None,  # type: ignore[arg-type]
             users_owned=(
                 getattr(board_game, "_data", {}).get("users_owned")
                 if hasattr(board_game, "_data")
@@ -451,7 +412,9 @@ class BGGAdapter:
 
         # Read boolean-like raw values from _data (the library's properties
         # normalize 1→False in some cases).  Read the numeric fields directly.
-        _data: dict[str, Any] = getattr(collection_game, "_data", collection_game.__dict__)
+        _data: dict[str, Any] = getattr(
+            collection_game, "_data", collection_game.__dict__
+        )
 
         def _raw_owned() -> bool:
             val = int(_data.get("owned", 0))
@@ -463,7 +426,7 @@ class BGGAdapter:
 
         # Numeric fields: library properties may return None; read from _data.
         def _raw_numeric(field: str) -> int | None:
-            val = _data.get(field, None)
+            val = _data.get(field)
             if val is None:
                 return None
             return int(val)
@@ -492,13 +455,19 @@ class BGGAdapter:
             year=collection_game.year,
             thumbnail=collection_game.thumbnail,
             image=collection_game.image,
-            bgg_rank=int(_rating("bgg_rank")) if _rating("bgg_rank") is not None else None,  # type: ignore[arg-type]
-            boardgame_rank=int(_rating("boardgame_rank")) if _rating("boardgame_rank") is not None else None,  # type: ignore[arg-type]
+            bgg_rank=int(_rating("bgg_rank"))
+            if _rating("bgg_rank") is not None
+            else None,  # type: ignore[arg-type]
+            boardgame_rank=int(_rating("boardgame_rank"))
+            if _rating("boardgame_rank") is not None
+            else None,  # type: ignore[arg-type]
             rating_bayes_average=_rating("rating_bayes_average"),
             rating_average=_rating("rating_average"),
             rating_median=_rating("rating_median"),
             rating_stddev=_rating("rating_stddev"),
-            users_rated=int(_rating("users_rated")) if _rating("users_rated") is not None else None,  # type: ignore[arg-type]
+            users_rated=int(_rating("users_rated"))
+            if _rating("users_rated") is not None
+            else None,  # type: ignore[arg-type]
         )
 
     def _normalise_batch(self, board_game: Any) -> BGGBatchRecord:

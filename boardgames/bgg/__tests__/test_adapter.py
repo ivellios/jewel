@@ -154,7 +154,9 @@ def mock_client(monkeypatch):
     from unittest.mock import MagicMock
 
     mc = MagicMock()
-    monkeypatch.setattr("boardgames.bgg.adapter.BGGClient", lambda *a, **kw: mc)
+    monkeypatch.setattr(
+        "boardgames.bgg.client.BoardGameGeekClient", lambda *a, **kw: mc
+    )
     return mc
 
 

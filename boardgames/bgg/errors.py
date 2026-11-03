@@ -1,10 +1,10 @@
-"""Explicit adapter errors — Jewel-owned hierarchy."""
+"""Explicit BGG boundary errors — Jewel-owned hierarchy."""
 
 from __future__ import annotations
 
 
 class BGGAdapterError(Exception):
-    """Base error for all BGG adapter failures."""
+    """Base error for all BGG client and adapter failures."""
 
 
 class BGGCredentialMissingError(BGGAdapterError):

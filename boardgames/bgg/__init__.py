@@ -9,6 +9,7 @@ from .adapter import (
     BGGPlaysRecord,
     BGGRatingRecord,
 )
+from .client import DEFAULT_BGG_API_URL, BGGClient
 from .errors import (
     BGGAdapterError,
     BGGCredentialMissingError,
@@ -19,6 +20,8 @@ from .errors import (
 __all__ = [
     # Adapter
     "BGGAdapter",
+    "BGGClient",
+    "DEFAULT_BGG_API_URL",
     # Records
     "BGGBatchRecord",
     "BGGCollectionRecord",
