@@ -48,7 +48,10 @@ from boardgames.models import (
     BGGSyncRun,
     BGGSyncRunStatus,
 )
-from boardgames.services.canonical_upsert import upsert_detail
+from boardgames.services.canonical_upsert import (
+    synchronize_expansion_links,
+    upsert_detail,
+)
 from boardgames.services.reconciliation import reconcile
 
 logger = logging.getLogger(__name__)
@@ -202,6 +205,14 @@ def full_reconcile(
                 f"Upsert bgg_id={detail.bgg_id}: {type(exc).__name__}: {exc}"
             )
             detail_failed_count += 1
+
+    # Relationship state is safe to reconcile only once every authoritative
+    # detail was fetched and its canonical metadata was persisted.
+    if fetch_successful and not detail_failed_count:
+        synchronize_expansion_links(
+            (detail for _col_record, detail in detail_records),
+            (col_record.bgg_id for col_record in collection),
+        )
 
     # Any detail or canonical-persistence failure makes this input incomplete.
     sync_run.items_failed = detail_failed_count

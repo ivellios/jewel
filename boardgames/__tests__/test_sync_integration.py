@@ -456,53 +456,128 @@ class LocalOverridesTest(TestCase):
 class ExpansionIntegrationTest(TestCase):
     """Verify BGGExpansion rows are created during integration."""
 
-    def test_expansion_links_created_when_base_exists(self):
-        """When both expansion and base BGGMetadata exist, BGGExpansion
-        rows are created."""
-
-        base_meta = BGGMetadata.objects.create(bgg_id=910050, name="Base Game")
-        exp_meta = BGGMetadata.objects.create(bgg_id=910051, name="Expansion Game")
-
-        # Detail record that references both expansion and expands.
-        collection = (_make_collection_record(bgg_id=910050),)
+    def test_second_pass_creates_order_independent_multiple_base_links(
+        self,
+    ):
+        """The real sync creates links after all detail metadata is upserted."""
+        collection = (
+            _make_collection_record(bgg_id=910051),
+            _make_collection_record(bgg_id=910050),
+            _make_collection_record(bgg_id=910052),
+        )
         detail_records = (
+            {"bgg_id": 910051, "name": "Expansion", "expands": (910050, 910052)},
             {
                 "bgg_id": 910050,
-                "name": "Base Game",
-                "expansions": (910051,),
+                "name": "Base A",
+                "expansions": (910051, 910050),
                 "expands": (),
             },
+            {"bgg_id": 910052, "name": "Base B", "expansions": (), "expands": ()},
         )
         adapter = _make_adapter(collection, detail_records)
 
-        _run_with_upsert_patch(adapter, "importer")
+        full_reconcile(adapter, "importer")
 
-        link = BGGExpansion.objects.get(expansion=exp_meta, parent=base_meta)
-
-        self.assertEqual(BGGExpansion.objects.count(), 1)
-        self.assertEqual(link.expansion.bgg_id, 910051)
-        self.assertEqual(link.parent.bgg_id, 910050)
-
-    def test_expansion_skipped_when_base_missing(self):
-        """When the expansion's BGGMetadata does not yet exist, no
-        BGGExpansion row is created."""
-
-        BGGMetadata.objects.create(bgg_id=910052, name="Orphan Expansion")
-
-        collection = (_make_collection_record(bgg_id=910052),)
-        detail_records = (
-            {
-                "bgg_id": 910052,
-                "name": "Orphan Expansion",
-                "expansions": (999999,),  # does not exist
-                "expands": (),
-            },
+        self.assertEqual(
+            set(
+                BGGExpansion.objects.values_list("expansion__bgg_id", "parent__bgg_id")
+            ),
+            {(910051, 910050), (910051, 910052)},
         )
-        adapter = _make_adapter(collection, detail_records)
 
-        _run_with_upsert_patch(adapter, "importer")
+    def test_partial_or_missing_base_does_not_destructively_alter_links(
+        self,
+    ):
+        """Incomplete source details leave relationships from prior full syncs."""
+        collection = (
+            _make_collection_record(bgg_id=910050),
+            _make_collection_record(bgg_id=910051),
+        )
+        adapter = _make_adapter(
+            collection,
+            (
+                {"bgg_id": 910050, "name": "Base", "expansions": (910051,)},
+                {"bgg_id": 910051, "name": "Expansion", "expands": ()},
+            ),
+        )
+        full_reconcile(adapter, "importer")
 
-        self.assertEqual(BGGExpansion.objects.count(), 0)
+        partial_adapter = _make_adapter(
+            collection,
+            ({"bgg_id": 910051, "name": "Expansion", "expands": ()},),
+            fail_detail_ids={910050},
+        )
+        full_reconcile(partial_adapter, "importer")
+
+        self.assertTrue(
+            BGGExpansion.objects.filter(
+                expansion__bgg_id=910051, parent__bgg_id=910050
+            ).exists()
+        )
+
+    def test_full_repeat_removes_stale_source_links(self):
+        """A later complete collection is source-authoritative and idempotent."""
+        collection = (
+            _make_collection_record(bgg_id=910050),
+            _make_collection_record(bgg_id=910051),
+        )
+        full_reconcile(
+            _make_adapter(
+                collection,
+                (
+                    {"bgg_id": 910050, "name": "Base", "expansions": (910051,)},
+                    {"bgg_id": 910051, "name": "Expansion", "expands": ()},
+                ),
+            ),
+            "importer",
+        )
+        adapter = _make_adapter(
+            collection,
+            (
+                {"bgg_id": 910050, "name": "Base", "expansions": ()},
+                {"bgg_id": 910051, "name": "Expansion", "expands": ()},
+            ),
+        )
+        full_reconcile(adapter, "importer")
+        full_reconcile(adapter, "importer")
+
+        self.assertFalse(BGGExpansion.objects.exists())
+
+    def test_base_before_expansion_creates_the_same_link(self):
+        """The second pass makes source collection order irrelevant."""
+        collection = (
+            _make_collection_record(bgg_id=910060),
+            _make_collection_record(bgg_id=910061),
+        )
+        adapter = _make_adapter(
+            collection,
+            (
+                {"bgg_id": 910060, "name": "Base", "expansions": (910061,)},
+                {"bgg_id": 910061, "name": "Expansion", "expands": (910060,)},
+            ),
+        )
+
+        full_reconcile(adapter, "importer")
+
+        self.assertEqual(
+            set(
+                BGGExpansion.objects.values_list("expansion__bgg_id", "parent__bgg_id")
+            ),
+            {(910061, 910060)},
+        )
+
+    def test_missing_base_is_not_linked(self):
+        """An expansion cannot link to a base absent from the collection."""
+        collection = (_make_collection_record(bgg_id=910070),)
+        adapter = _make_adapter(
+            collection,
+            ({"bgg_id": 910070, "name": "Expansion", "expands": (910071,)},),
+        )
+
+        full_reconcile(adapter, "importer")
+
+        self.assertFalse(BGGExpansion.objects.exists())
 
 
 # -----------------------------------------------------------------------

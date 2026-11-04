@@ -1,9 +1,8 @@
 """Canonical metadata upsert service.
 
 Maps one normalised ``BGGDetailRecord`` into a canonical
-``BGGMetadata`` row (upserted by ``bgg_id``) and its
-expansion / expands links via the existing ``BGGExpansion``
-model.
+``BGGMetadata`` row (upserted by ``bgg_id``). Expansion links are
+synchronised in a separate authoritative collection pass.
 
 This service:
 
@@ -16,22 +15,18 @@ This service:
 * Updates source fields only when the record carries a
   non-``None`` value; ``None`` is treated as "omit" and
   leaves existing columns untouched.
-* Writes ``BGGExpansion`` rows through ``get_or_create``
-  so that duplicate calls are idempotent and self-links
-  are silently skipped (enforced by the model's check
-  constraint).
-* Caches the base ``BGGMetadata`` row before processing
-  expansion links to avoid unnecessary N+1 queries on
-  existing metadata updates.
+* Synchronizes expansion links only after all canonical metadata for a
+  complete collection is present, avoiding ordering dependencies.
 * Never touches ``BoardGame`` local copies.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from django.db import transaction
+from django.db.models import Q
 
 from boardgames.bgg import BGGDetailRecord
 from boardgames.models import BGGExpansion, BGGMetadata
@@ -50,7 +45,6 @@ class UpsertResult:
     """Return value of ``upsert_detail``."""
 
     metadata: BGGMetadata
-    expansion_links: list[BGGExpansion] = field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------
@@ -117,7 +111,7 @@ def _to_list(value: tuple[str, ...] | str | None) -> list[str] | None:
 
 
 def upsert_detail(record: BGGDetailRecord) -> UpsertResult:
-    """Upsert one canonical BGG metadata row + expansion links.
+    """Upsert one canonical BGG metadata row.
 
     Parameters
     ----------
@@ -127,79 +121,105 @@ def upsert_detail(record: BGGDetailRecord) -> UpsertResult:
     Returns
     -------
     UpsertResult
-        The upserted ``BGGMetadata`` and any new
-        ``BGGExpansion`` rows created during this call.
+        The upserted ``BGGMetadata``. Expansion links are synchronized in a
+        deliberate second pass by :func:`synchronize_expansion_links`.
     """
 
     mapping = _mapping_pairs(record)
-    created_ids: set[int] = set()
 
-    def _upsert_metadata() -> tuple[BGGMetadata, bool]:
-        obj, created = BGGMetadata.objects.update_or_create(
+    def _upsert_metadata() -> BGGMetadata:
+        obj, _created = BGGMetadata.objects.update_or_create(
             bgg_id=record.bgg_id,
             defaults=dict(mapping) if mapping else {},
         )
-        if created:
-            created_ids.add(obj.bgg_id)
-        return obj, created
-
-    def _upsert_expansion_links(
-        base_meta: BGGMetadata,
-    ) -> list[BGGExpansion]:
-        """Create expansion and expands links, skipping self-links.
-
-        Only links to expansion metadata that already exists in the
-        database.  Links that already exist are returned only when
-        they are newly created by this call, so repeated calls are
-        idempotent.
-
-        The ``base_meta`` parameter is passed explicitly so that the
-        caller can perform a single lookup before calling this helper,
-        avoiding the N+1 queries that would result from repeating
-        ``BGGMetadata.objects.get(bgg_id=...)`` inside every loop
-        iteration.
-        """
-
-        new_links: list[BGGExpansion] = []
-
-        for expansion_id in record.expansions:
-            # Skip self-links before hitting the check constraint.
-            if expansion_id == record.bgg_id:
-                continue
-            try:
-                expansion_meta = BGGMetadata.objects.get(bgg_id=expansion_id)
-            except BGGMetadata.DoesNotExist:
-                continue
-            link, created = BGGExpansion.objects.get_or_create(
-                expansion=expansion_meta,
-                parent=base_meta,
-            )
-            if created:
-                new_links.append(link)
-
-        for expands_id in record.expands:
-            if expands_id == record.bgg_id:
-                continue
-            try:
-                expands_meta = BGGMetadata.objects.get(bgg_id=expands_id)
-            except BGGMetadata.DoesNotExist:
-                continue
-            link, created = BGGExpansion.objects.get_or_create(
-                expansion=base_meta,
-                parent=expands_meta,
-            )
-            if created:
-                new_links.append(link)
-
-        return new_links
+        return obj
 
     with transaction.atomic():
-        metadata, _created = _upsert_metadata()
-        links = _upsert_expansion_links(metadata)
+        metadata = _upsert_metadata()
 
-    return UpsertResult(
-        metadata=metadata,
-        expansion_links=links,
+    return UpsertResult(metadata=metadata)
+
+
+def synchronize_expansion_links(
+    records: Iterable[BGGDetailRecord],
+    authoritative_ids: Iterable[int],
+) -> list[BGGExpansion]:
+    """Synchronize relationships from a complete authoritative collection.
+
+    Both endpoints must occur in the collection and have canonical metadata.
+    If a record references an absent endpoint, it is not authoritative for
+    relationship removals from that source. A complete record with eligible
+    endpoints replaces its owned links, so stale links are deleted only during
+    a fully successful collection sync. ``expansions`` owns its parent-side
+    links and ``expands`` owns its expansion-side links.
+    """
+    record_list = tuple(records)
+    eligible_ids = set(authoritative_ids)
+    records_by_id = {record.bgg_id: record for record in record_list}
+    if set(records_by_id) != eligible_ids:
+        return []
+
+    metadata_by_id = BGGMetadata.objects.in_bulk(eligible_ids, field_name="bgg_id")
+    if set(metadata_by_id) != eligible_ids:
+        return []
+
+    expected_pairs: set[tuple[int, int]] = set()
+    parent_sources: set[int] = set()
+    expansion_sources: set[int] = set()
+    for record in record_list:
+        expansion_ids = set(record.expansions) - {record.bgg_id}
+        parent_ids = set(record.expands) - {record.bgg_id}
+        if expansion_ids <= eligible_ids:
+            parent_sources.add(record.bgg_id)
+            expected_pairs.update(
+                (expansion_id, record.bgg_id) for expansion_id in expansion_ids
+            )
+        if parent_ids <= eligible_ids:
+            expansion_sources.add(record.bgg_id)
+            expected_pairs.update(
+                (record.bgg_id, parent_id) for parent_id in parent_ids
+            )
+
+    with transaction.atomic():
+        parent_source_pks = [metadata_by_id[bgg_id].pk for bgg_id in parent_sources]
+        expansion_source_pks = [
+            metadata_by_id[bgg_id].pk for bgg_id in expansion_sources
+        ]
+        existing = BGGExpansion.objects.filter(
+            Q(parent_id__in=parent_source_pks)
+            | Q(expansion_id__in=expansion_source_pks)
+        ).select_related("expansion", "parent")
+        stale_ids = [
+            link.pk
+            for link in existing
+            if (link.expansion.bgg_id, link.parent.bgg_id) not in expected_pairs
+        ]
+        if stale_ids:
+            BGGExpansion.objects.filter(pk__in=stale_ids).delete()
+
+        existing_pairs = {
+            (link.expansion.bgg_id, link.parent.bgg_id)
+            for link in BGGExpansion.objects.filter(
+                expansion__bgg_id__in=eligible_ids,
+                parent__bgg_id__in=eligible_ids,
+            )
+        }
+        new_pairs = expected_pairs - existing_pairs
+        BGGExpansion.objects.bulk_create(
+            [
+                BGGExpansion(
+                    expansion=metadata_by_id[expansion_id],
+                    parent=metadata_by_id[parent_id],
+                )
+                for expansion_id, parent_id in new_pairs
+            ]
+        )
+
+    return list(
+        BGGExpansion.objects.filter(
+            expansion__bgg_id__in=eligible_ids,
+            parent__bgg_id__in=eligible_ids,
+        ).select_related("expansion", "parent")
     )
 
 
