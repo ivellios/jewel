@@ -119,7 +119,7 @@ class BGGExpansion(models.Model):
                 name="boardgames_unique_expansion_parent",
             ),
             models.CheckConstraint(
-                check=~models.Q(expansion=models.F("parent")),
+                condition=~models.Q(expansion=models.F("parent")),
                 name="boardgames_no_self_link",
                 violation_error_message="An expansion cannot link to itself.",
             ),

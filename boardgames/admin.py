@@ -127,6 +127,7 @@ class BoardGameAdmin(admin.ModelAdmin):
     @admin.display(description="BGG Source")
     def metadata_link(self, obj: BoardGame):
         if obj.metadata_id:
+            assert obj.metadata is not None
             url = obj.metadata.bgg_url or ""
             return format_html(
                 '<a href="{url}" target="_blank" rel="noopener">BGG #{bgg_id}</a>',

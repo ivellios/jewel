@@ -83,10 +83,13 @@ make test
 
 ```shell
 # Lint (auto-fix when possible)
-uv run ruff check --fix games csv_importer steam abstract jewel
+uv run ruff check --fix games csv_importer steam abstract jewel boardgames
 
 # Format (replaces Black)
-uv run ruff format games csv_importer steam abstract jewel
+uv run ruff format games csv_importer steam abstract jewel boardgames
+
+# Type checking (mypy)
+uv run mypy --config-file pyproject.toml games csv_importer steam abstract jewel boardgames
 
 # Django system checks
 uv run python manage.py check

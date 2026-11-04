@@ -135,6 +135,7 @@ strict_optional = true
 exclude = [
     "games/migrations",
     "steam/migrations",
+    "boardgames/migrations",
     ".*__pycache__.*",
     ".*__tests__.*",
     ".*fixtures.*",

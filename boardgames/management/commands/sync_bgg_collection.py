@@ -109,10 +109,10 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         """Execute the full reconciliation pipeline."""
         # Read settings (fail early with clear messages).
-        access_token = getattr(settings, "BGG_ACCESS_TOKEN", None)
+        access_token: str | None = getattr(settings, "BGG_ACCESS_TOKEN", None)
         api_url = getattr(settings, "BGG_API_URL", "https://api.boardgamegeek.com")
         request_timeout = getattr(settings, "BGG_REQUEST_TIMEOUT", 30)
-        user_name = getattr(settings, "BGG_USER_NAME", None)
+        user_name: str | None = getattr(settings, "BGG_USER_NAME", None)
 
         # Validate required settings.
         missing = []
@@ -123,6 +123,9 @@ class Command(BaseCommand):
         if missing:
             self.stderr.write(f"Error: Missing required settings: {', '.join(missing)}")
             raise SystemExit(2)
+
+        assert access_token is not None
+        assert user_name is not None
 
         # Build the repository boundary and run full reconciliation.
         repository = BGGRepository(

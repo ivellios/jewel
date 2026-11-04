@@ -3,7 +3,9 @@ from django.db import models
 
 
 class CollectionItem(models.Model):
-    name = models.CharField(max_length=255, verbose_name="Game title")
+    name = models.CharField(
+        max_length=255, verbose_name="Game title", null=True, blank=True
+    )
     played = models.BooleanField(
         verbose_name="Already Played", default=False, null=True
     )

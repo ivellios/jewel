@@ -22,14 +22,12 @@ repos:
       - id: ruff-format
 
   # ── Type checking (local/system hook, same environment as CI) ──
-  # NOTE: mypy scope intentionally excludes boardgames — deferred
-  # to final Packet 14. Ruff hooks above cover all Python files.
 
   - repo: local
     hooks:
       - id: mypy
         name: mypy
-        entry: uv run mypy --config-file pyproject.toml games csv_importer steam abstract jewel
+        entry: uv run mypy --config-file pyproject.toml games csv_importer steam abstract jewel boardgames
         language: system
         pass_filenames: false
         always_run: true

@@ -4,8 +4,8 @@
 # mypy scope is intentionally narrower (see ci.yml and .pre-commit-config.yaml).
 QUALITY_PATHS = games csv_importer steam abstract jewel boardgames
 
-# Narrow mypy scope: boardgames type checking deferred to Packet 14.
-MYPY_PATHS = games csv_importer steam abstract jewel
+# Narrow mypy scope: all modules now included (boardgames completed in Packet 14).
+MYPY_PATHS = games csv_importer steam abstract jewel boardgames
 
 quality-fix:
 	uv run ruff check --fix $(QUALITY_PATHS)

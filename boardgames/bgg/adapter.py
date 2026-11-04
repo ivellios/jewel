@@ -307,7 +307,8 @@ def _strings(value: object | None) -> tuple[str, ...]:
         text = _text(value)
         return (text,) if text else ()
     if not isinstance(value, Iterable) or isinstance(value, bytes | Mapping):
-        return (_text(value),) if _text(value) else ()
+        text = _text(value)
+        return (text,) if text else ()
     return tuple(text for item in value if (text := _text(item)) is not None)
 
 
