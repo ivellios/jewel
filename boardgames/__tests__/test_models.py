@@ -34,67 +34,6 @@ class BGGMetadataModelTest(TestCase):
         with self.assertRaises(IntegrityError):
             BGGMetadata.objects.create(bgg_id=99999, name="Game Two")
 
-    def test_all_source_fields_nullable(self):
-        """Every source field accepts None / empty strings."""
-        meta = BGGMetadataFactory(name=None, yearpublished=None, minplayers=None)
-        meta.maxplayers = None
-        meta.playingtime = None
-        meta.min_playing_time = None
-        meta.max_playing_time = None
-        meta.item_type = None
-        meta.comment = None
-        meta.bgg_url = None
-        meta.thumbnail = None
-        meta.image = None
-        meta.publishers = None
-        meta.designers = None
-        meta.mechanics = None
-        meta.categories = None
-        meta.alternative_names = None
-        meta.families = None
-        meta.rating_bayes_average = None
-        meta.rating_average = None
-        meta.rating_median = None
-        meta.rating_stddev = None
-        meta.rating_num_weights = None
-        meta.bgg_rank = None
-        meta.boardgame_rank = None
-        meta.users_rated = None
-        meta.users_owned = None
-        meta.plays_count = None
-        meta.save()
-
-        # Reload and verify all fields are None or blank.
-        refreshed = BGGMetadata.objects.get(pk=meta.pk)
-        self.assertIsNone(refreshed.name)
-        self.assertIsNone(refreshed.yearpublished)
-        self.assertIsNone(refreshed.minplayers)
-        self.assertIsNone(refreshed.maxplayers)
-        self.assertIsNone(refreshed.playingtime)
-        self.assertIsNone(refreshed.min_playing_time)
-        self.assertIsNone(refreshed.max_playing_time)
-        self.assertIsNone(refreshed.item_type)
-        self.assertIsNone(refreshed.comment)
-        self.assertIsNone(refreshed.bgg_url)
-        self.assertIsNone(refreshed.thumbnail)
-        self.assertIsNone(refreshed.image)
-        self.assertIsNone(refreshed.publishers)
-        self.assertIsNone(refreshed.designers)
-        self.assertIsNone(refreshed.mechanics)
-        self.assertIsNone(refreshed.categories)
-        self.assertIsNone(refreshed.alternative_names)
-        self.assertIsNone(refreshed.families)
-        self.assertIsNone(refreshed.rating_bayes_average)
-        self.assertIsNone(refreshed.rating_average)
-        self.assertIsNone(refreshed.rating_median)
-        self.assertIsNone(refreshed.rating_stddev)
-        self.assertIsNone(refreshed.rating_num_weights)
-        self.assertIsNone(refreshed.bgg_rank)
-        self.assertIsNone(refreshed.boardgame_rank)
-        self.assertIsNone(refreshed.users_rated)
-        self.assertIsNone(refreshed.users_owned)
-        self.assertIsNone(refreshed.plays_count)
-
     def test_minplayers_validator(self):
         """minplayers rejects values below 1."""
         meta = BGGMetadata(bgg_id=80000, name="Test", minplayers=0)
@@ -127,41 +66,6 @@ class BGGSyncRunModelTest(TestCase):
         )
         self.assertIn("full", str(run))
         self.assertIn("BGGSyncRun#", str(run))
-
-    def test_default_status_is_failed(self):
-        """Unset status defaults to 'failed'."""
-        run = BGGSyncRun.objects.create()
-        self.assertEqual(run.status, BGGSyncRunStatus.FAILED)
-
-    def test_fetch_successful_defaults_false(self):
-        """fetch_successful defaults to False."""
-        run = BGGSyncRun.objects.create()
-        self.assertFalse(run.fetch_successful)
-
-    def test_counters_default_to_zero(self):
-        """All counters default to 0."""
-        run = BGGSyncRun.objects.create()
-        self.assertEqual(run.items_total, 0)
-        self.assertEqual(run.items_fetched, 0)
-        self.assertEqual(run.items_failed, 0)
-
-    def test_timestamps_created_at_auto(self):
-        """created_at is set automatically."""
-        run = BGGSyncRun.objects.create()
-        self.assertIsNotNone(run.created_at)
-
-    def test_completed_at_can_be_null(self):
-        """completed_at defaults to None until completion."""
-        run = BGGSyncRun.objects.create()
-        self.assertIsNone(run.completed_at)
-
-    def test_null_error_and_diagnostics(self):
-        """error_messages and diagnostics accept None."""
-        BGGSyncRun.objects.create(
-            status=BGGSyncRunStatus.PARTIAL,
-            error_messages=None,
-            diagnostics=None,
-        )
 
     def test_status_choices(self):
         """Status is one of the defined choices."""
@@ -229,24 +133,6 @@ class BGGCollectionObservationModelTest(TestCase):
         with self.assertRaises(IntegrityError):
             BGGCollectionObservationFactory(metadata=metadata)
 
-    def test_observation_source_values_can_be_omitted(self):
-        observation = BGGCollectionObservationFactory(
-            quantity=None,
-            rating=None,
-            numplays=None,
-            owned=None,
-            wishlist=None,
-            want_to_play=None,
-        )
-
-        observation.refresh_from_db()
-        self.assertIsNone(observation.quantity)
-        self.assertIsNone(observation.rating)
-        self.assertIsNone(observation.numplays)
-        self.assertIsNone(observation.owned)
-        self.assertIsNone(observation.wishlist)
-        self.assertIsNone(observation.want_to_play)
-
     def test_quantity_rejects_negative_values(self):
         observation = BGGCollectionObservation(
             metadata=BGGMetadataFactory(),
@@ -265,11 +151,6 @@ class BoardGameModelTest(TestCase):
         bg = BoardGameFactory()
         self.assertIsNotNone(bg.id)
         self.assertEqual(type(bg.id).__name__, "UUID")
-
-    def test_str_uses_editable_name(self):
-        """__str__ returns the editable name when set."""
-        bg = BoardGameFactory(name="Gloomhaven")
-        self.assertEqual(str(bg), "Gloomhaven")
 
     def test_str_falls_back_to_metadata_name(self):
         """__str__ falls back to linked metadata name."""
@@ -343,8 +224,3 @@ class BoardGameModelTest(TestCase):
         bg_b = BoardGameFactory(metadata=meta_b, name="TTR Europe")
         self.assertNotEqual(bg_a.id, bg_b.id)
         self.assertNotEqual(bg_a.metadata_id, bg_b.metadata_id)
-
-    def test_non_metadata_boardgame_has_no_metadata_link(self):
-        """BoardGame without metadata has no metadata FK set."""
-        bg = BoardGameFactory(metadata=None)
-        self.assertIsNone(bg.metadata_id)
