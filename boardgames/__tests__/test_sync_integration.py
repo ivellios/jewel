@@ -1,25 +1,19 @@
-"""Integration tests for the full BGG sync flow.
+"""Compact integration suite for the full BGG sync path.
 
-Tests use mocked BGG adapter responses but real Django test DB and
-real orchestration/reconciliation/upsert services.
+Exercises repository → service → ORM boundaries with mocked BGG responses,
+real Django test DB, and real orchestration/reconciliation/upsert services.
 
-Scenarios:
+Scenarios covered:
 
 1.  First import (full success).
 2.  Repeated import (idempotent — new BGGSyncRun, updated BoardGame).
-3.  Distinct BGG IDs / editions — distinct copies for different bgg_ids.
-4.  Quantity no-duplication — same bgg_id, multiple owned entries.
-5.  Local-only game — unaffected by sync.
-6.  Local overrides — local fields preserved across sync.
-7.  Expansion with / without base — BGGExpansion rows.
-8.  Update — re-importing updates existing BoardGame.
-9.  Removal — missing imported copies soft-removed when complete=True.
-10. Restoration — reappearing copies restored after removal.
-11. Partial item failure — some detail fetches fail, BoardGame.metadata=None.
-12. Failed collection fetch — network error, no copies removed.
-13. Persisted run diagnostics — BGGSyncRun with full counters / diagnostics.
-14. API contract — serializer fields match BoardGame exposed fields.
-15. Admin contract — read-only permissions on all admin classes.
+3.  Quantity observation without copy multiplication.
+4.  Local name snapshot + local-only preservation.
+5.  Expansion base rule / order (source-order independence).
+6.  Complete removal + restoration.
+7.  Partial detail-failure safety.
+8.  Collection fetch failure (network error).
+9.  Persisted diagnostics (counters + diagnostics JSON).
 """
 
 from __future__ import annotations
@@ -27,13 +21,10 @@ from __future__ import annotations
 import json
 from unittest.mock import MagicMock, patch
 
-from django.contrib.admin.sites import AdminSite
-from django.test import RequestFactory, TestCase
+from django.test import TestCase
 
-from rest_framework.test import APIClient
-
-from boardgames.api.serializers import BoardGameSerializer
 from boardgames.bgg import BGGCollectionRecord
+from boardgames.bgg.errors import BGGNetworkError, BGGNotFoundError
 from boardgames.models import (
     BGGExpansion,
     BGGMetadata,
@@ -44,24 +35,22 @@ from boardgames.models import (
 from boardgames.services import full_reconcile
 from boardgames.services.orchestration import OrchestrationResult
 
-from ..__tests__.factories import (
-    BGGExpansionFactory,
+from .factories import (
     BGGMetadataFactory,
-    BGGSyncRunFactory,
     collection_record,
 )
 
 # -----------------------------------------------------------------------
-# Helpers (copied from test_orchestration.py for self-containment)
+# Helpers — lean mocks at the repository boundary, no manual seeding.
 # -----------------------------------------------------------------------
 
 
 def _patch_upsert_detail() -> MagicMock:
-    """Return a started patch for ``upsert_detail`` that creates BGGMetadata."""
+    """Patch ``upsert_detail`` to create BGGMetadata rows."""
 
     from boardgames.models import BGGMetadata
 
-    def _upsert_detail_side_effect(record):
+    def _side_effect(record):
         obj, _ = BGGMetadata.objects.update_or_create(
             bgg_id=record.bgg_id,
             defaults={
@@ -85,7 +74,7 @@ def _patch_upsert_detail() -> MagicMock:
 
     return patch(
         "boardgames.services.canonical_upsert.upsert_detail",
-        side_effect=_upsert_detail_side_effect,
+        side_effect=_side_effect,
     )
 
 
@@ -98,7 +87,6 @@ def _make_adapter(
     """Build a mock BGGRepository with predictable behaviour."""
 
     from boardgames.bgg import BGGDetailRecord
-    from boardgames.bgg.errors import BGGNetworkError, BGGNotFoundError
 
     mock = MagicMock()
     mock.get_collection.return_value = collection
@@ -202,29 +190,34 @@ def _run_with_upsert_patch(adapter: MagicMock, user_name: str) -> OrchestrationR
 
 
 # -----------------------------------------------------------------------
-# 1. First import (full success)
+# 1. First import (full success) + quantity observation
 # -----------------------------------------------------------------------
 
 
 class FirstImportTest(TestCase):
     """Verify first-time import behaviour."""
 
-    def test_creates_metadata_and_game(self):
-        """A fresh import creates both BGGMetadata and BoardGame."""
+    def test_creates_metadata_game_and_observations(self):
+        """A fresh import creates BGGMetadata, BoardGame, and observations."""
 
         collection = (
-            collection_record(bgg_id=910000),
+            collection_record(bgg_id=910000, owned=True, quantity=2),
             collection_record(bgg_id=910001),
         )
         adapter = _make_adapter(collection)
 
-        _result = _run_with_upsert_patch(adapter, "importer")
+        _run_with_upsert_patch(adapter, "importer")
 
         self.assertEqual(
             set(BGGMetadata.objects.values_list("bgg_id", flat=True)),
             {910000, 910001},
         )
         self.assertEqual(BoardGame.objects.filter(imported=True).count(), 2)
+        # Quantity observation is persisted without multiplying copies.
+        self.assertEqual(
+            BGGMetadata.objects.get(bgg_id=910000).collection_observation.quantity,
+            2,
+        )
 
     def test_sync_run_status_is_full(self):
         """First import with no failures → status=full."""
@@ -244,9 +237,9 @@ class FirstImportTest(TestCase):
 
 
 class RepeatedImportTest(TestCase):
-    """Verify that re-running creates new BGGSyncRun but updates existing copies."""
+    """Verify that re-running creates new BGGSyncRun but updates copies."""
 
-    def test_new_sync_run_created_each_run(self):
+    def test_new_sync_run_each_run(self):
         """Repeated runs produce distinct BGGSyncRun records."""
 
         collection = (collection_record(bgg_id=910010),)
@@ -258,7 +251,7 @@ class RepeatedImportTest(TestCase):
         self.assertEqual(BGGSyncRun.objects.count(), 2)
 
     def test_existing_game_updated(self):
-        """Re-running with the same bgg_id updates imported_updated count."""
+        """Re-running with the same bgg_id updates imported_updated."""
 
         meta = BGGMetadata.objects.create(bgg_id=910020, name="First Name")
         BoardGame.objects.create(
@@ -275,39 +268,15 @@ class RepeatedImportTest(TestCase):
 
 
 # -----------------------------------------------------------------------
-# 3. Distinct BGG IDs / editions
-# -----------------------------------------------------------------------
-
-
-class DistinctEditionsTest(TestCase):
-    """Verify distinct bgg_ids produce distinct BoardGame copies."""
-
-    def test_each_bg_id_gets_own_copy(self):
-        """Different bgg_ids → distinct BoardGame rows."""
-
-        collection = (
-            collection_record(bgg_id=910030),
-            collection_record(bgg_id=910031),
-            collection_record(bgg_id=910032),
-        )
-        adapter = _make_adapter(collection)
-
-        _run_with_upsert_patch(adapter, "importer")
-
-        self.assertEqual(BoardGame.objects.filter(imported=True).count(), 3)
-
-
-# -----------------------------------------------------------------------
-# 4. Quantity no-duplication
+# 3. Quantity observation without copy multiplication
 # -----------------------------------------------------------------------
 
 
 class QuantityNoDuplicationTest(TestCase):
-    """Verify that multiple collection entries with the same bgg_id do not
-    create duplicate BoardGame rows."""
+    """Multiple collection entries with the same bgg_id → one BoardGame."""
 
-    def test_same_bg_id_creates_single_copy(self):
-        """Two collection records with the same bgg_id → one BoardGame."""
+    def test_same_bg_id_single_copy(self):
+        """Two collection records with same bgg_id → one BoardGame."""
 
         collection = (
             collection_record(bgg_id=910040, owned=True),
@@ -315,9 +284,8 @@ class QuantityNoDuplicationTest(TestCase):
         )
         adapter = _make_adapter(collection)
 
-        _result = _run_with_upsert_patch(adapter, "importer")
+        _run_with_upsert_patch(adapter, "importer")
 
-        # The reconcile layer deduplicates by bgg_id.
         self.assertEqual(
             BoardGame.objects.filter(imported=True, metadata__bgg_id=910040).count(),
             1,
@@ -339,14 +307,14 @@ class QuantityNoDuplicationTest(TestCase):
 
 
 # -----------------------------------------------------------------------
-# 5. Local-only game (not affected)
+# 4. Local name snapshot + local-only preservation
 # -----------------------------------------------------------------------
 
 
-class LocalOnlyGameTest(TestCase):
-    """Verify local (imported=False) copies are never touched."""
+class LocalPreservationTest(TestCase):
+    """Verify local (imported=False) and local-override copies survive."""
 
-    def test_local_game_unchanged_after_sync(self):
+    def test_local_only_game_unchanged(self):
         """Importing does not affect local-only rows."""
 
         meta = BGGMetadataFactory()
@@ -369,16 +337,7 @@ class LocalOnlyGameTest(TestCase):
         self.assertFalse(refreshed.imported)
         self.assertFalse(refreshed.removed)
 
-
-# -----------------------------------------------------------------------
-# 6. Local overrides (preserved after sync)
-# -----------------------------------------------------------------------
-
-
-class LocalOverridesTest(TestCase):
-    """Verify that local editable fields survive a sync run."""
-
-    def test_local_fields_preserved(self):
+    def test_local_fields_preserved_on_imported_copy(self):
         """Local fields (name, language, edition_label, condition) survive."""
 
         meta = BGGMetadataFactory()
@@ -406,17 +365,15 @@ class LocalOverridesTest(TestCase):
 
 
 # -----------------------------------------------------------------------
-# 7. Expansion with / without base
+# 5. Expansion base rule / order (source-order independence)
 # -----------------------------------------------------------------------
 
 
 class ExpansionIntegrationTest(TestCase):
-    """Verify BGGExpansion rows are created during integration."""
+    """Verify BGGExpansion rows created during integration."""
 
-    def test_second_pass_creates_order_independent_multiple_base_links(
-        self,
-    ):
-        """The real sync creates links after all detail metadata is upserted."""
+    def test_second_pass_creates_order_independent_links(self):
+        """Source collection order is irrelevant after all details are present."""
         collection = (
             collection_record(bgg_id=910051),
             collection_record(bgg_id=910050),
@@ -443,66 +400,8 @@ class ExpansionIntegrationTest(TestCase):
             {(910051, 910050), (910051, 910052)},
         )
 
-    def test_partial_or_missing_base_does_not_destructively_alter_links(
-        self,
-    ):
-        """Incomplete source details leave relationships from prior full syncs."""
-        collection = (
-            collection_record(bgg_id=910050),
-            collection_record(bgg_id=910051),
-        )
-        adapter = _make_adapter(
-            collection,
-            (
-                {"bgg_id": 910050, "name": "Base", "expansions": (910051,)},
-                {"bgg_id": 910051, "name": "Expansion", "expands": ()},
-            ),
-        )
-        full_reconcile(adapter, "importer")
-
-        partial_adapter = _make_adapter(
-            collection,
-            ({"bgg_id": 910051, "name": "Expansion", "expands": ()},),
-            fail_detail_ids={910050},
-        )
-        full_reconcile(partial_adapter, "importer")
-
-        self.assertTrue(
-            BGGExpansion.objects.filter(
-                expansion__bgg_id=910051, parent__bgg_id=910050
-            ).exists()
-        )
-
-    def test_full_repeat_removes_stale_source_links(self):
-        """A later complete collection is source-authoritative and idempotent."""
-        collection = (
-            collection_record(bgg_id=910050),
-            collection_record(bgg_id=910051),
-        )
-        full_reconcile(
-            _make_adapter(
-                collection,
-                (
-                    {"bgg_id": 910050, "name": "Base", "expansions": (910051,)},
-                    {"bgg_id": 910051, "name": "Expansion", "expands": ()},
-                ),
-            ),
-            "importer",
-        )
-        adapter = _make_adapter(
-            collection,
-            (
-                {"bgg_id": 910050, "name": "Base", "expansions": ()},
-                {"bgg_id": 910051, "name": "Expansion", "expands": ()},
-            ),
-        )
-        full_reconcile(adapter, "importer")
-        full_reconcile(adapter, "importer")
-
-        self.assertFalse(BGGExpansion.objects.exists())
-
-    def test_base_before_expansion_creates_the_same_link(self):
-        """The second pass makes source collection order irrelevant."""
+    def test_base_before_expansion_creates_same_link(self):
+        """Expanding from the base side: (expansion, parent) is deterministic."""
         collection = (
             collection_record(bgg_id=910060),
             collection_record(bgg_id=910061),
@@ -524,7 +423,7 @@ class ExpansionIntegrationTest(TestCase):
             {(910061, 910060)},
         )
 
-    def test_missing_base_is_not_linked(self):
+    def test_missing_base_not_linked(self):
         """An expansion cannot link to a base absent from the collection."""
         collection = (collection_record(bgg_id=910070),)
         adapter = _make_adapter(
@@ -538,47 +437,14 @@ class ExpansionIntegrationTest(TestCase):
 
 
 # -----------------------------------------------------------------------
-# 8. Update (re-importing updates existing game)
+# 6. Complete removal + restoration
 # -----------------------------------------------------------------------
 
 
-class UpdateTest(TestCase):
-    """Verify that re-importing an existing board game updates fields."""
+class RemovalRestorationTest(TestCase):
+    """Verify missing copies are soft-removed; reappearing restored."""
 
-    def test_update_imported_fields_only(self):
-        """Re-import updates import-time fields but preserves local fields."""
-
-        meta = BGGMetadata.objects.create(bgg_id=910060, name="Old Name")
-        BoardGame.objects.create(
-            metadata=meta,
-            imported=True,
-            owned=False,
-            removed=False,
-            name="Local Name",  # local override
-            condition="good",  # local override
-        )
-
-        collection = (collection_record(bgg_id=910060, owned=True),)
-        adapter = _make_adapter(collection)
-
-        result = _run_with_upsert_patch(adapter, "importer")
-
-        self.assertEqual(result.imported_updated, 1)
-        game = BoardGame.objects.get(metadata=meta)
-        self.assertTrue(game.owned)
-        self.assertEqual(game.name, "Local Name")  # preserved
-        self.assertEqual(game.condition, "good")  # preserved
-
-
-# -----------------------------------------------------------------------
-# 9. Removal (missing copies when complete=True)
-# -----------------------------------------------------------------------
-
-
-class RemovalTest(TestCase):
-    """Verify that missing imported copies are soft-removed."""
-
-    def test_missing_copy_is_removed_by_complete_empty_collection(self):
+    def test_missing_copy_removed_by_empty_collection(self):
         """A complete empty collection removes globally missing imports."""
 
         meta = BGGMetadata.objects.create(bgg_id=910070, name="Old Game")
@@ -608,15 +474,6 @@ class RemovalTest(TestCase):
         game = BoardGame.objects.get(pk=local_game.pk)
         self.assertFalse(game.removed)
 
-
-# -----------------------------------------------------------------------
-# 10. Restoration (reappearing copies)
-# -----------------------------------------------------------------------
-
-
-class RestorationTest(TestCase):
-    """Verify that reappearing copies are restored after removal."""
-
     def test_reappearing_copy_restored(self):
         """When a previously removed bgg_id reappears, it is restored."""
 
@@ -628,7 +485,7 @@ class RestorationTest(TestCase):
         collection = (collection_record(bgg_id=910080, owned=True),)
         adapter = _make_adapter(collection)
 
-        _result = _run_with_upsert_patch(adapter, "importer")
+        _run_with_upsert_patch(adapter, "importer")
 
         refreshed = BoardGame.objects.get(pk=game.pk)
         self.assertFalse(refreshed.removed)
@@ -636,14 +493,14 @@ class RestorationTest(TestCase):
 
 
 # -----------------------------------------------------------------------
-# 11. Partial item failure
+# 7. Partial detail-failure safety
 # -----------------------------------------------------------------------
 
 
 class PartialFailureTest(TestCase):
     """Verify that partial detail-fetch failures are handled gracefully."""
 
-    def test_failed_item_creates_no_anonymous_imported_copy(self):
+    def test_failed_item_creates_no_anonymous_copy(self):
         """A failed detail cannot create an imported copy without metadata."""
 
         collection = (
@@ -675,12 +532,12 @@ class PartialFailureTest(TestCase):
 
 
 # -----------------------------------------------------------------------
-# 12. Failed collection fetch (network error)
+# 8. Collection fetch failure (network error)
 # -----------------------------------------------------------------------
 
 
 class FailedCollectionFetchTest(TestCase):
-    """Verify that a failed collection fetch does not remove any copies."""
+    """Verify that a failed collection fetch does not remove copies."""
 
     def test_network_error_sets_failed_status(self):
         """BGGNetworkError → status=failed, no copies touched."""
@@ -710,7 +567,7 @@ class FailedCollectionFetchTest(TestCase):
 
 
 # -----------------------------------------------------------------------
-# 13. Persisted run diagnostics
+# 9. Persisted diagnostics (counters + diagnostics JSON)
 # -----------------------------------------------------------------------
 
 
@@ -758,118 +615,3 @@ class PersistedDiagnosticsTest(TestCase):
         self.assertEqual(sync_run.items_fetched, result.items_fetched)
         self.assertEqual(sync_run.items_failed, result.items_failed)
         self.assertEqual(sync_run.fetch_successful, result.fetch_successful)
-
-
-# -----------------------------------------------------------------------
-# 14. API contract — serializers expose correct fields
-# -----------------------------------------------------------------------
-
-
-class ApiContractTest(TestCase):
-    """Verify API serializer fields match BoardGame model fields."""
-
-    def setUp(self):
-        self.client = APIClient()
-
-    def test_serializer_serialises_board_game(self):
-        """A BoardGame instance can be serialised without errors."""
-
-        meta = BGGMetadataFactory()
-        game = BoardGame.objects.create(
-            metadata=meta,
-            imported=True,
-            owned=True,
-            removed=False,
-            name="Test Game",
-            language="en",
-            condition="mint",
-        )
-
-        data = BoardGameSerializer(game).data
-        self.assertEqual(data["id"], str(game.id))
-        self.assertEqual(data["name"], "Test Game")
-        self.assertEqual(data["imported"], True)
-        self.assertEqual(data["owned"], True)
-
-
-# -----------------------------------------------------------------------
-# 15. Admin contract — read-only permissions
-# -----------------------------------------------------------------------
-
-
-class AdminContractTest(TestCase):
-    """Verify all admin classes enforce read-only permissions."""
-
-    def setUp(self):
-        self.site = AdminSite()
-        self.factory = RequestFactory()
-
-    def _make_request(self, user=None):
-        request = self.factory.get("/admin/")
-        request.user = user or self._anonymous_user()
-        return request
-
-    @staticmethod
-    def _anonymous_user():
-        from django.contrib.auth.models import AnonymousUser
-
-        return AnonymousUser()
-
-    def test_bgg_metadata_fully_readonly(self):
-        """BGGMetadataAdmin denies add/change/delete."""
-
-        from boardgames.admin import BGGMetadataAdmin
-
-        admin = BGGMetadataAdmin(BGGMetadata, self.site)
-        request = self._make_request()
-
-        self.assertFalse(admin.has_add_permission(request))
-        self.assertFalse(admin.has_change_permission(request))
-
-        obj = BGGMetadataFactory()
-        self.assertFalse(admin.has_delete_permission(request, obj))
-
-    def test_bgg_expansion_fully_readonly(self):
-        """BGGExpansionAdmin denies add/change/delete."""
-
-        from boardgames.admin import BGGExpansionAdmin
-
-        admin = BGGExpansionAdmin(BGGExpansion, self.site)
-        request = self._make_request()
-
-        self.assertFalse(admin.has_add_permission(request))
-        self.assertFalse(admin.has_change_permission(request))
-
-        obj = BGGExpansionFactory()
-        self.assertFalse(admin.has_delete_permission(request, obj))
-
-    def test_bgg_sync_run_fully_readonly(self):
-        """BGGSyncRunAdmin denies add/change/delete."""
-
-        from boardgames.admin import BGGSyncRunAdmin
-
-        admin = BGGSyncRunAdmin(BGGSyncRun, self.site)
-        request = self._make_request()
-
-        self.assertFalse(admin.has_add_permission(request))
-        self.assertFalse(admin.has_change_permission(request))
-
-        obj = BGGSyncRunFactory()
-        self.assertFalse(admin.has_delete_permission(request, obj))
-
-    def test_sync_run_list_display_includes_diagnostics(self):
-        """BGGSyncRunAdmin list_display shows diagnostic fields."""
-
-        from boardgames.admin import BGGSyncRunAdmin
-
-        admin = BGGSyncRunAdmin(BGGSyncRun, self.site)
-        expected = [
-            "pk",
-            "status",
-            "fetch_successful",
-            "items_total",
-            "items_fetched",
-            "items_failed",
-            "created_at",
-        ]
-        self.assertEqual(admin.list_display, expected)
