@@ -36,6 +36,8 @@ class UpsertDetailServiceTest(TestCase):
             playing_time=120,
             min_playing_time=90,
             max_playing_time=150,
+            item_type="boardgame",
+            bgg_url=f"https://boardgamegeek.com/boardgame/{bgg_id}",
             designers="Stefan Feld",
             publishers="Clemson University",
             mechanics="Area Influence, Set Collection",
@@ -54,12 +56,9 @@ class UpsertDetailServiceTest(TestCase):
             description="A fantasy civilization game.",
             expansions=expansions,
             expands=expands,
-            alternative_names=(),
-            designers_list=(),
-            publishers_list=(),
-            mechanics_list=(),
-            categories_list=(),
-            families=(),
+            alternative_names=("Terra Mystica HD", "Terra GM"),
+            families=("Engine Building", "Tile Placement"),
+            plays_count=9800,
             **extra,
         )
 
@@ -94,6 +93,51 @@ class UpsertDetailServiceTest(TestCase):
         self.assertEqual(meta.designers, "Stefan Feld")
         self.assertEqual(meta.mechanics, "Area Influence, Set Collection")
         self.assertEqual(meta.categories, "Farming, Strategy")
+
+    def test_returns_mapping_fields_extended(self):
+        """Packet 5 fields: ratings, ranks, users, item_type, URLs,
+        alternative_names, families, plays_count, min/max playing time."""
+
+        record = self._make_record(bgg_id=500010)
+        result = upsert_detail(record)
+        meta = result.metadata
+
+        # Item type and source URL.
+        self.assertEqual(meta.item_type, "boardgame")
+        self.assertEqual(
+            meta.bgg_url,
+            "https://boardgamegeek.com/boardgame/500010",
+        )
+
+        # Min/max playing time.
+        self.assertEqual(meta.min_playing_time, 90)
+        self.assertEqual(meta.max_playing_time, 150)
+
+        # Ratings.
+        self.assertEqual(meta.rating_bayes_average, 4.12)
+        self.assertEqual(meta.rating_average, 4.35)
+        self.assertEqual(meta.rating_median, 4.5)
+        self.assertEqual(meta.rating_stddev, 0.8)
+        self.assertEqual(meta.rating_num_weights, 2.8)
+
+        # Ranks and user counts.
+        self.assertEqual(meta.bgg_rank, 4)
+        self.assertEqual(meta.boardgame_rank, 4)
+        self.assertEqual(meta.users_rated, 45000)
+        self.assertEqual(meta.users_owned, 12000)
+
+        # Play aggregate.
+        self.assertEqual(meta.plays_count, 9800)
+
+        # Alternative names and families (JSON → tuple stored as JSONField).
+        self.assertEqual(
+            meta.alternative_names,
+            ["Terra Mystica HD", "Terra GM"],
+        )
+        self.assertEqual(
+            meta.families,
+            ["Engine Building", "Tile Placement"],
+        )
 
     def test_updates_existing_metadata_row(self):
         """Repeated upsert with the same BGG ID updates the existing row."""
@@ -159,6 +203,8 @@ class UpsertDetailServiceTest(TestCase):
             playing_time=None,
             min_playing_time=None,
             max_playing_time=None,
+            item_type=None,
+            bgg_url=None,
             designers=None,
             publishers=None,
             mechanics=None,
@@ -175,6 +221,9 @@ class UpsertDetailServiceTest(TestCase):
             thumbnail=None,
             image=None,
             description=None,
+            alternative_names=None,
+            families=None,
+            plays_count=None,
         )
         upsert_detail(partial_record)
 
@@ -187,6 +236,31 @@ class UpsertDetailServiceTest(TestCase):
         self.assertEqual(meta.playingtime, 120)
         self.assertEqual(meta.designers, "Stefan Feld")
         self.assertEqual(meta.categories, "Farming, Strategy")
+        self.assertEqual(meta.item_type, "boardgame")
+        self.assertEqual(
+            meta.bgg_url,
+            "https://boardgamegeek.com/boardgame/500007",
+        )
+        self.assertEqual(meta.min_playing_time, 90)
+        self.assertEqual(meta.max_playing_time, 150)
+        self.assertEqual(meta.rating_bayes_average, 4.12)
+        self.assertEqual(meta.rating_average, 4.35)
+        self.assertEqual(meta.rating_median, 4.5)
+        self.assertEqual(meta.rating_stddev, 0.8)
+        self.assertEqual(meta.rating_num_weights, 2.8)
+        self.assertEqual(meta.bgg_rank, 4)
+        self.assertEqual(meta.boardgame_rank, 4)
+        self.assertEqual(meta.users_rated, 45000)
+        self.assertEqual(meta.users_owned, 12000)
+        self.assertEqual(meta.plays_count, 9800)
+        self.assertEqual(
+            meta.alternative_names,
+            ["Terra Mystica HD", "Terra GM"],
+        )
+        self.assertEqual(
+            meta.families,
+            ["Engine Building", "Tile Placement"],
+        )
 
     def test_empty_record_preserves_all_fields(self):
         """An empty record (only bgg_id) does not erase anything."""
@@ -203,6 +277,8 @@ class UpsertDetailServiceTest(TestCase):
             playing_time=None,
             min_playing_time=None,
             max_playing_time=None,
+            item_type=None,
+            bgg_url=None,
             designers=None,
             publishers=None,
             mechanics=None,
@@ -219,12 +295,17 @@ class UpsertDetailServiceTest(TestCase):
             thumbnail=None,
             image=None,
             description=None,
+            alternative_names=None,
+            families=None,
+            plays_count=None,
         )
         upsert_detail(empty_record)
 
         meta = BGGMetadata.objects.get(bgg_id=500008)
         self.assertEqual(meta.name, "Terra Mystica Extended")
         self.assertEqual(meta.yearpublished, 2012)
+        self.assertEqual(meta.item_type, "boardgame")
+        self.assertEqual(meta.plays_count, 9800)
 
 
 class UpsertExpansionLinksTest(TestCase):
@@ -245,6 +326,8 @@ class UpsertExpansionLinksTest(TestCase):
             playing_time=None,
             min_playing_time=None,
             max_playing_time=None,
+            item_type=None,
+            bgg_url=None,
             designers=None,
             publishers=None,
             mechanics=None,
@@ -269,6 +352,7 @@ class UpsertExpansionLinksTest(TestCase):
             mechanics_list=(),
             categories_list=(),
             families=(),
+            plays_count=None,
         )
 
     def test_creates_expansion_links_for_new_base(self):
@@ -363,8 +447,8 @@ class UpsertExpansionLinksTest(TestCase):
         self.assertEqual(result.expansion_links[0].expansion.bgg_id, 600001)
         self.assertEqual(result.expansion_links[0].parent.bgg_id, 600000)
 
-    def test_upsert_on_existing_metadata_creates_no_links(self):
-        """Updating existing metadata (new=False) creates no links."""
+    def test_upsert_on_existing_metadata_creates_links(self):
+        """Updating existing metadata still processes expansion links."""
 
         BGGMetadata.objects.create(bgg_id=600000, name="Old")
         BGGMetadata.objects.create(bgg_id=600001, name="Expansion A")
@@ -375,8 +459,11 @@ class UpsertExpansionLinksTest(TestCase):
         )
         result = upsert_detail(base_record)
 
-        # The expansion metadata already existed, so no new links.
-        self.assertEqual(len(result.expansion_links), 0)
+        # The expansion metadata already existed, so the link is created.
+        self.assertEqual(len(result.expansion_links), 1)
+        link = result.expansion_links[0]
+        self.assertEqual(link.expansion.bgg_id, 600001)
+        self.assertEqual(link.parent.bgg_id, 600000)
 
 
 class UpsertBoardGameIndependenceTest(TestCase):
@@ -395,6 +482,8 @@ class UpsertBoardGameIndependenceTest(TestCase):
             playing_time=None,
             min_playing_time=None,
             max_playing_time=None,
+            item_type=None,
+            bgg_url=None,
             designers=None,
             publishers=None,
             mechanics=None,
@@ -419,6 +508,7 @@ class UpsertBoardGameIndependenceTest(TestCase):
             mechanics_list=(),
             categories_list=(),
             families=(),
+            plays_count=None,
         )
 
     def _boardgame_count(self) -> int:

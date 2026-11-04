@@ -42,6 +42,9 @@ class BGGDetailRecord:
     thumbnail: str | None
     image: str | None
     description: str | None
+    item_type: str | None
+    bgg_url: str | None
+    plays_count: int | None
     expansions: tuple[int, ...] = ()
     expands: tuple[int, ...] = ()
     alternative_names: tuple[str, ...] = ()
@@ -151,6 +154,9 @@ def normalize_detail(raw: RawResponse) -> BGGDetailRecord:
         thumbnail=_text(_value(raw, "thumbnail")),
         image=_text(_value(raw, "image")),
         description=_text(_value(raw, "description")),
+        item_type=_text(_value(raw, "thing_type", "type")),
+        bgg_url=_text(_value(raw, "objecturl", "bgg_url")),
+        plays_count=_non_negative_integer(_value(raw, "plays_count")),
         expansions=_related_ids(_value(raw, "expansions")),
         expands=_related_ids(_value(raw, "expands")),
         alternative_names=_strings(_value(raw, "alternative_names")),

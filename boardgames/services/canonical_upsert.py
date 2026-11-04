@@ -9,6 +9,10 @@ This service:
 
 * Creates or updates exactly one ``BGGMetadata`` row per
   distinct BGG ID.
+* Maps all approved canonical fields from Packet 5,
+  including item type, min/max playing time, ratings,
+  ranks/counts, play aggregate, alternative names/families,
+  and source URL fields.
 * Updates source fields only when the record carries a
   non-``None`` value; ``None`` is treated as "omit" and
   leaves existing columns untouched.
@@ -16,6 +20,9 @@ This service:
   so that duplicate calls are idempotent and self-links
   are silently skipped (enforced by the model's check
   constraint).
+* Caches the base ``BGGMetadata`` row before processing
+  expansion links to avoid unnecessary N+1 queries on
+  existing metadata updates.
 * Never touches ``BoardGame`` local copies.
 """
 
@@ -52,7 +59,13 @@ class UpsertResult:
 
 
 def _mapping_pairs(record: BGGDetailRecord) -> list[tuple[str, object]]:
-    """Yield (column, value) pairs for columns that are not None."""
+    """Yield (column, value) pairs for columns that are not None.
+
+    Every approved BGGDetailRecord field that has a corresponding
+    BGGMetadata column is mapped here.  Fields that are None are
+    silently skipped so that partial fetches preserve existing DB
+    values (omit-semantics).
+    """
 
     mappings: list[tuple[str, object]] = [
         ("name", record.name),
@@ -60,16 +73,42 @@ def _mapping_pairs(record: BGGDetailRecord) -> list[tuple[str, object]]:
         ("minplayers", record.min_players),
         ("maxplayers", record.max_players),
         ("playingtime", record.playing_time),
+        ("min_playing_time", record.min_playing_time),
+        ("max_playing_time", record.max_playing_time),
+        ("item_type", record.item_type),
         ("comment", record.description),
+        ("bgg_url", record.bgg_url),
         ("thumbnail", record.thumbnail),
         ("image", record.image),
         ("publishers", record.publishers),
         ("designers", record.designers),
         ("mechanics", record.mechanics),
         ("categories", record.categories),
+        ("alternative_names", _to_list(record.alternative_names)),
+        ("families", _to_list(record.families)),
+        ("rating_bayes_average", record.rating_bayes_average),
+        ("rating_average", record.rating_average),
+        ("rating_median", record.rating_median),
+        ("rating_stddev", record.rating_stddev),
+        ("rating_num_weights", record.rating_num_weights),
+        ("bgg_rank", record.bgg_rank),
+        ("boardgame_rank", record.boardgame_rank),
+        ("users_rated", record.users_rated),
+        ("users_owned", record.users_owned),
+        ("plays_count", record.plays_count),
     ]
 
     return [(col, val) for col, val in mappings if val is not None]
+
+
+def _to_list(value: tuple[str, ...] | str | None) -> list[str] | None:
+    """Convert a tuple, string, or None to a list (or None)."""
+
+    if value is None:
+        return None
+    if isinstance(value, str):
+        return [value]
+    return list(value)
 
 
 # ---------------------------------------------------------------------------
@@ -104,13 +143,21 @@ def upsert_detail(record: BGGDetailRecord) -> UpsertResult:
             created_ids.add(obj.bgg_id)
         return obj, created
 
-    def _upsert_expansion_links() -> list[BGGExpansion]:
+    def _upsert_expansion_links(
+        base_meta: BGGMetadata,
+    ) -> list[BGGExpansion]:
         """Create expansion and expands links, skipping self-links.
 
         Only links to expansion metadata that already exists in the
         database.  Links that already exist are returned only when
         they are newly created by this call, so repeated calls are
         idempotent.
+
+        The ``base_meta`` parameter is passed explicitly so that the
+        caller can perform a single lookup before calling this helper,
+        avoiding the N+1 queries that would result from repeating
+        ``BGGMetadata.objects.get(bgg_id=...)`` inside every loop
+        iteration.
         """
 
         new_links: list[BGGExpansion] = []
@@ -123,7 +170,6 @@ def upsert_detail(record: BGGDetailRecord) -> UpsertResult:
                 expansion_meta = BGGMetadata.objects.get(bgg_id=expansion_id)
             except BGGMetadata.DoesNotExist:
                 continue
-            base_meta = BGGMetadata.objects.get(bgg_id=record.bgg_id)
             link, created = BGGExpansion.objects.get_or_create(
                 expansion=expansion_meta,
                 parent=base_meta,
@@ -138,7 +184,6 @@ def upsert_detail(record: BGGDetailRecord) -> UpsertResult:
                 expands_meta = BGGMetadata.objects.get(bgg_id=expands_id)
             except BGGMetadata.DoesNotExist:
                 continue
-            base_meta = BGGMetadata.objects.get(bgg_id=record.bgg_id)
             link, created = BGGExpansion.objects.get_or_create(
                 expansion=base_meta,
                 parent=expands_meta,
@@ -149,8 +194,8 @@ def upsert_detail(record: BGGDetailRecord) -> UpsertResult:
         return new_links
 
     with transaction.atomic():
-        metadata, created = _upsert_metadata()
-        links = _upsert_expansion_links() if created else []
+        metadata, _created = _upsert_metadata()
+        links = _upsert_expansion_links(metadata)
 
     return UpsertResult(
         metadata=metadata,
