@@ -252,3 +252,87 @@ class BoardGameDeleteAPITestCase(BoardGameAPITestCase):
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         # BoardGame must NOT be deleted
         self.assertEqual(BoardGame.objects.count(), 1)
+
+
+# --- Packet 10: API ownership and read-only contract ---
+
+
+class BoardGameNestedSourceReadAPITestCase(BoardGameAPITestCase):
+    """BoardGameSerializer exposes nested BGG metadata and collection
+    observation rather than a bare FK/ID."""
+
+    def test_detail_exposes_nested_bgg_metadata(self):
+        """Read response nests BGG metadata fields (bgg_id, name, etc.)
+        inside ``metadata`` instead of exposing only the FK."""
+        url = reverse("boardgame-detail-api", kwargs={"id": self.board_game.id})
+        response = self.client.get(url, **self._get_auth_headers())
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        meta = response.data["metadata"]
+        self.assertIsInstance(meta, dict)
+        self.assertIn("bgg_id", meta)
+        self.assertIn("name", meta)
+        self.assertEqual(meta["bgg_id"], self.metadata.bgg_id)
+        self.assertEqual(meta["name"], self.metadata.name)
+
+    def test_detail_excludes_bgg_writeable_fields(self):
+        """Nested BGG metadata in read response must not expose mutable
+        source fields like publishers, designers, or mechanics."""
+        url = reverse("boardgame-detail-api", kwargs={"id": self.board_game.id})
+        response = self.client.get(url, **self._get_auth_headers())
+        meta = response.data["metadata"]
+        self.assertNotIn("publishers", meta)
+        self.assertNotIn("designers", meta)
+        self.assertNotIn("mechanics", meta)
+        self.assertNotIn("categories", meta)
+
+    def test_detail_excludes_collection_observation_when_absent(self):
+        """When no collection observation exists, the field is null."""
+        url = reverse("boardgame-detail-api", kwargs={"id": self.board_game.id})
+        response = self.client.get(url, **self._get_auth_headers())
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIsNone(response.data["collection_observation"])
+
+
+class BoardGameReversibleDeleteAPITestCase(BoardGameAPITestCase):
+    """BGG-sourced items use reversible removal; local-only items are
+    physically deleted. The API returns appropriate status codes."""
+
+    def test_imported_item_uses_reversible_removal(self):
+        """DELETE on an imported (BGG-sourced) game sets removed=True
+        and owned=False instead of physically deleting."""
+        board_game = BoardGameFactory(
+            metadata=self.metadata,
+            imported=True,
+            name="Imported Game",
+        )
+        url = reverse("boardgame-detail-api", kwargs={"id": board_game.id})
+        response = self.client.delete(url, **self._get_auth_headers())
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        # Source-managed row must still exist in the database.
+        self.assertEqual(BoardGame.objects.filter(id=board_game.id).count(), 1)
+        board_game.refresh_from_db()
+        self.assertTrue(board_game.removed)
+        self.assertFalse(board_game.owned)
+
+    def test_local_only_item_is_physically_deleted(self):
+        """DELETE on a local-only (non-imported, no metadata) game
+        physically removes it, matching the existing 204 behavior."""
+        local_game = BoardGameFactory(
+            metadata=None,
+            imported=False,
+            name="Local Only",
+        )
+        url = reverse("boardgame-detail-api", kwargs={"id": local_game.id})
+        response = self.client.delete(url, **self._get_auth_headers())
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        # setUp's self.board_game still exists (1); local_game was physically
+        # deleted (0), so total count is 1.
+        self.assertEqual(BoardGame.objects.count(), 1)
+
+    def test_source_identity_not_affected_by_delete(self):
+        """Deleting a BoardGame must never touch BGGMetadata (the
+        canonical source). The linked metadata must still exist."""
+        original_metadata_id = self.metadata.pk
+        url = reverse("boardgame-detail-api", kwargs={"id": self.board_game.id})
+        self.client.delete(url, **self._get_auth_headers())
+        self.assertTrue(BGGMetadata.objects.filter(pk=original_metadata_id).exists())
