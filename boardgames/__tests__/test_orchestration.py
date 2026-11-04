@@ -37,6 +37,7 @@ from boardgames.services.orchestration import (
 
 from ..__tests__.factories import (
     BGGMetadataFactory,
+    collection_record,
 )
 
 # -----------------------------------------------------------------------
@@ -92,50 +93,6 @@ def _patch_upsert_detail(
     return patch(
         "boardgames.services.orchestration.upsert_detail",
         side_effect=_upsert_detail_side_effect,
-    )
-
-
-def _make_collection_record(
-    bgg_id: int = 900000,
-    owned: bool = False,
-    rating: int | None = None,
-    numplays: int = 0,
-    **extra,
-) -> BGGCollectionRecord:
-    """Convenience factory for BGGCollectionRecord fixtures."""
-
-    return BGGCollectionRecord(
-        bgg_id=bgg_id,
-        name=None,
-        rating=rating,
-        numplays=numplays,
-        owned=owned,
-        prev_owned=False,
-        wishlist=False,
-        wishlist_priority=None,
-        want=False,
-        want_to_play=False,
-        want_to_buy=False,
-        preordered=False,
-        for_trade=False,
-        comment=None,
-        last_modified=None,
-        min_players=None,
-        max_players=None,
-        playing_time=None,
-        min_playing_time=None,
-        max_playing_time=None,
-        year=None,
-        thumbnail=None,
-        image=None,
-        bgg_rank=None,
-        boardgame_rank=None,
-        rating_bayes_average=None,
-        rating_average=None,
-        rating_median=None,
-        rating_stddev=None,
-        users_rated=None,
-        **extra,
     )
 
 
@@ -295,9 +252,9 @@ class FullSuccessTest(TestCase):
         """A fully successful run sets status=full, fetch_successful=True."""
 
         collection = (
-            _make_collection_record(bgg_id=900100),
-            _make_collection_record(bgg_id=900101),
-            _make_collection_record(bgg_id=900102),
+            collection_record(bgg_id=900100),
+            collection_record(bgg_id=900101),
+            collection_record(bgg_id=900102),
         )
         adapter = _make_adapter(collection)
 
@@ -314,7 +271,7 @@ class FullSuccessTest(TestCase):
     def test_full_success_creates_sync_run_record(self):
         """A successful run persists a BGGSyncRun with all fields."""
 
-        collection = (_make_collection_record(bgg_id=900200),)
+        collection = (collection_record(bgg_id=900200),)
         adapter = _make_adapter(collection)
 
         result = _run_with_upsert_patch(adapter, "testuser")
@@ -402,9 +359,9 @@ class PartialFailureTest(TestCase):
         """When some items fail, status=partial and fetch_successful=True."""
 
         collection = (
-            _make_collection_record(bgg_id=900300),
-            _make_collection_record(bgg_id=900301),
-            _make_collection_record(bgg_id=900302),
+            collection_record(bgg_id=900300),
+            collection_record(bgg_id=900301),
+            collection_record(bgg_id=900302),
         )
         # Make bgg_id 900301 fail — pre-create metadata so
         # reconciliation does not crash on the failed bgg_id.
@@ -428,8 +385,8 @@ class PartialFailureTest(TestCase):
         """Error messages include item index and bgg_id."""
 
         collection = (
-            _make_collection_record(bgg_id=900400),
-            _make_collection_record(bgg_id=900401),
+            collection_record(bgg_id=900400),
+            collection_record(bgg_id=900401),
         )
         # Pre-create metadata for the failing bgg_id.
         BGGMetadata.objects.create(bgg_id=900401, name="Game 900401")
@@ -449,8 +406,8 @@ class PartialFailureTest(TestCase):
         """A failed detail without metadata does not create an anonymous copy."""
 
         collection = (
-            _make_collection_record(bgg_id=900300),
-            _make_collection_record(bgg_id=900301),
+            collection_record(bgg_id=900300),
+            collection_record(bgg_id=900301),
         )
         # Intentionally do NOT pre-create BGGMetadata for 900301.
         # In the real pipeline, a failed detail fetch means upsert_detail
@@ -490,8 +447,8 @@ class PartialFailureTest(TestCase):
             removed=False,
         )
         collection = (
-            _make_collection_record(bgg_id=900398),
-            _make_collection_record(bgg_id=900397),
+            collection_record(bgg_id=900398),
+            collection_record(bgg_id=900397),
         )
         adapter = _make_adapter(collection, fail_detail_ids={900397})
 
@@ -512,7 +469,7 @@ class ErrorBoundingTest(TestCase):
         """Only the last MAX_ERROR_MESSAGES errors are stored."""
 
         large_collection = tuple(
-            _make_collection_record(bgg_id=900500 + i) for i in range(200)
+            collection_record(bgg_id=900500 + i) for i in range(200)
         )
         # Make every 3rd item fail — 67 failures.
         fail_ids = {900500 + i for i in range(200) if (i + 1) % 3 == 0}
@@ -543,7 +500,7 @@ class ErrorBoundingTest(TestCase):
             "bgg_id": 900600,
             "name": "A" * 1000,  # Very long name → long error message.
         }
-        collection = (_make_collection_record(bgg_id=900600),)
+        collection = (collection_record(bgg_id=900600),)
         # Pre-create metadata for the failing bgg_id.
         BGGMetadata.objects.create(bgg_id=900600, name="Game 900600")
 
@@ -570,7 +527,7 @@ class SyncRunPersistenceTest(TestCase):
     def test_sync_run_has_timestamps(self):
         """created_at and completed_at are set."""
 
-        collection = (_make_collection_record(bgg_id=900700),)
+        collection = (collection_record(bgg_id=900700),)
         adapter = _make_adapter(collection)
 
         _run_with_upsert_patch(adapter, "testuser")
@@ -582,7 +539,7 @@ class SyncRunPersistenceTest(TestCase):
     def test_multiple_runs_create_multiple_records(self):
         """Repeated runs create distinct BGGSyncRun records."""
 
-        collection = (_make_collection_record(bgg_id=900800),)
+        collection = (collection_record(bgg_id=900800),)
         adapter = _make_adapter(collection)
 
         _run_with_upsert_patch(adapter, "testuser")
@@ -593,7 +550,7 @@ class SyncRunPersistenceTest(TestCase):
     def test_diagnostics_contains_summary_fields(self):
         """Diagnostics JSON contains expected summary fields."""
 
-        collection = (_make_collection_record(bgg_id=900900),)
+        collection = (collection_record(bgg_id=900900),)
         adapter = _make_adapter(collection)
 
         result = _run_with_upsert_patch(adapter, "testuser")
@@ -628,8 +585,8 @@ class IntegrationWithModelsTest(TestCase):
         """Successful detail fetches create BGGMetadata rows."""
 
         collection = (
-            _make_collection_record(bgg_id=901000),
-            _make_collection_record(bgg_id=901001),
+            collection_record(bgg_id=901000),
+            collection_record(bgg_id=901001),
         )
         adapter = _make_adapter(collection)
 
@@ -641,7 +598,7 @@ class IntegrationWithModelsTest(TestCase):
     def test_imported_copies_created_for_successful_items(self):
         """Successful reconciliation creates imported BoardGame copies."""
 
-        collection = (_make_collection_record(bgg_id=901100),)
+        collection = (collection_record(bgg_id=901100),)
         adapter = _make_adapter(collection)
 
         result = _run_with_upsert_patch(adapter, "testuser")
@@ -662,7 +619,7 @@ class IntegrationWithModelsTest(TestCase):
             removed=False,
         )
 
-        collection = (_make_collection_record(bgg_id=901200),)
+        collection = (collection_record(bgg_id=901200),)
         adapter = _make_adapter(collection)
 
         result = _run_with_upsert_patch(adapter, "testuser")
@@ -682,7 +639,7 @@ class IntegrationWithModelsTest(TestCase):
             owned=True,
         )
 
-        collection = (_make_collection_record(bgg_id=meta.bgg_id),)
+        collection = (collection_record(bgg_id=meta.bgg_id),)
         adapter = _make_adapter(collection)
 
         _run_with_upsert_patch(adapter, "testuser")
@@ -706,9 +663,9 @@ class MixedFailureTest(TestCase):
         """Every required item failure is reflected in the run counter."""
 
         collection = (
-            _make_collection_record(bgg_id=902000),  # detail succeeds
-            _make_collection_record(bgg_id=902001),  # detail fails (BGGNotFoundError)
-            _make_collection_record(bgg_id=902002),  # detail succeeds, upsert fails
+            collection_record(bgg_id=902000),  # detail succeeds
+            collection_record(bgg_id=902001),  # detail fails (BGGNotFoundError)
+            collection_record(bgg_id=902002),  # detail succeeds, upsert fails
         )
         # bgg_id 902001 will fail on detail fetch.
         # bgg_id 902002 will succeed on detail but fail on upsert.
@@ -746,8 +703,8 @@ class MixedFailureTest(TestCase):
         """Persisted BGGSyncRun.items_failed matches the in-memory result."""
 
         collection = (
-            _make_collection_record(bgg_id=902100),
-            _make_collection_record(bgg_id=902101),
+            collection_record(bgg_id=902100),
+            collection_record(bgg_id=902101),
         )
         adapter = _make_adapter(collection, fail_detail_ids={902101})
 

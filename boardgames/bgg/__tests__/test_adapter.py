@@ -29,6 +29,7 @@ def test_detail_normalizes_values_and_relations_without_io():
 
     assert record == BGGDetailRecord(
         bgg_id=123,
+        item_type=None,
         name="Terra Mystica",
         year=2012,
         min_players=None,
@@ -52,6 +53,8 @@ def test_detail_normalizes_values_and_relations_without_io():
         thumbnail=None,
         image=None,
         description=None,
+        bgg_url=None,
+        plays_count=0,
         expansions=(22, 22),
         designers_list=("Stefan Feld",),
     )

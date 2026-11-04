@@ -2,6 +2,8 @@
 
 import factory
 
+from boardgames.bgg import BGGCollectionRecord
+
 from ..models import (
     BGGCollectionObservation,
     BGGExpansion,
@@ -10,6 +12,49 @@ from ..models import (
     BGGSyncRunStatus,
     BoardGame,
 )
+
+
+def collection_record(
+    bgg_id: int = 900000,
+    owned: bool = False,
+    rating: int | None = None,
+    numplays: int = 0,
+    **extra,
+) -> BGGCollectionRecord:
+    """Build a collection record with source fields defaulted to absent."""
+    return BGGCollectionRecord(
+        bgg_id=bgg_id,
+        name=None,
+        rating=rating,
+        numplays=numplays,
+        owned=owned,
+        prev_owned=False,
+        wishlist=False,
+        wishlist_priority=None,
+        want=False,
+        want_to_play=False,
+        want_to_buy=False,
+        preordered=False,
+        for_trade=False,
+        comment=None,
+        last_modified=None,
+        min_players=None,
+        max_players=None,
+        playing_time=None,
+        min_playing_time=None,
+        max_playing_time=None,
+        year=None,
+        thumbnail=None,
+        image=None,
+        bgg_rank=None,
+        boardgame_rank=None,
+        rating_bayes_average=None,
+        rating_average=None,
+        rating_median=None,
+        rating_stddev=None,
+        users_rated=None,
+        **extra,
+    )
 
 
 class BGGMetadataFactory(factory.django.DjangoModelFactory):

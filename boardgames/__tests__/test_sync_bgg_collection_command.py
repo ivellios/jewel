@@ -17,53 +17,17 @@ from unittest.mock import MagicMock, patch
 from django.core.management import call_command
 from django.test import TestCase, override_settings
 
-from boardgames.bgg import BGGCollectionRecord
+from boardgames.bgg import BGGCollectionRecord, BGGDetailRecord
 from boardgames.models import BGGSyncRun
+
+from ..__tests__.factories import collection_record
 
 # -----------------------------------------------------------------------
 # Helpers / fixture builders (mirroring orchestration test helpers)
 # -----------------------------------------------------------------------
 
 
-def _make_collection_record(
-    bgg_id: int = 900000,
-    **extra,
-) -> BGGCollectionRecord:
-    """Convenience factory for BGGCollectionRecord fixtures."""
-
-    return BGGCollectionRecord(
-        bgg_id=bgg_id,
-        name=None,
-        rating=extra.get("rating"),
-        numplays=extra.get("numplays", 0),
-        owned=extra.get("owned", False),
-        prev_owned=False,
-        wishlist=False,
-        wishlist_priority=None,
-        want=False,
-        want_to_play=False,
-        want_to_buy=False,
-        preordered=False,
-        for_trade=False,
-        comment=None,
-        last_modified=None,
-        min_players=None,
-        max_players=None,
-        playing_time=None,
-        min_playing_time=None,
-        max_playing_time=None,
-        year=None,
-        thumbnail=None,
-        image=None,
-        bgg_rank=None,
-        boardgame_rank=None,
-        rating_bayes_average=None,
-        rating_average=None,
-        rating_median=None,
-        rating_stddev=None,
-        users_rated=None,
-        **extra,
-    )
+_make_collection_record = collection_record
 
 
 def _make_repository(
@@ -87,14 +51,13 @@ def _make_repository(
         detail_records = ()
 
     def _get_detail_side_effect(bgg_id: int):
-        from boardgames.bgg import BGGDetailRecord
-
         if fail_detail_ids and bgg_id in fail_detail_ids:
             raise BGGNotFoundError(f"Not found: {bgg_id}")
         for rec in detail_records:
             if rec.get("bgg_id") == bgg_id:
                 return BGGDetailRecord(
                     bgg_id=rec["bgg_id"],
+                    item_type=rec.get("item_type"),
                     name=rec.get("name"),
                     year=rec.get("year"),
                     min_players=rec.get("min_players"),
@@ -118,6 +81,8 @@ def _make_repository(
                     thumbnail=rec.get("thumbnail"),
                     image=rec.get("image"),
                     description=rec.get("description"),
+                    bgg_url=rec.get("bgg_url"),
+                    plays_count=rec.get("plays_count"),
                     expansions=rec.get("expansions", ()),
                     expands=rec.get("expands", ()),
                     alternative_names=rec.get("alternative_names", ()),
@@ -129,6 +94,7 @@ def _make_repository(
                 )
         return BGGDetailRecord(
             bgg_id=bgg_id,
+            item_type=None,
             name=f"Game {bgg_id}",
             year=None,
             min_players=None,
@@ -152,6 +118,8 @@ def _make_repository(
             thumbnail=None,
             image=None,
             description=None,
+            bgg_url=None,
+            plays_count=None,
             expansions=(),
             expands=(),
             alternative_names=(),

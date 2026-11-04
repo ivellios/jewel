@@ -14,58 +14,14 @@ Tests:
 from django.db import IntegrityError
 from django.test import TestCase
 
-from boardgames.bgg import BGGCollectionRecord
 from boardgames.models import BGGCollectionObservation, BGGMetadata, BoardGame
 from boardgames.services import reconcile
 
 from ..__tests__.factories import (
     BGGMetadataFactory,
     BoardGameFactory,
+    collection_record,
 )
-
-
-def _make_collection_record(
-    bgg_id: int = 900000,
-    owned: bool = False,
-    rating: int | None = None,
-    numplays: int = 0,
-    **extra,
-) -> BGGCollectionRecord:
-    """Convenience factory for BGGCollectionRecord fixtures."""
-
-    return BGGCollectionRecord(
-        bgg_id=bgg_id,
-        name=None,
-        rating=rating,
-        numplays=numplays,
-        owned=owned,
-        prev_owned=False,
-        wishlist=False,
-        wishlist_priority=None,
-        want=False,
-        want_to_play=False,
-        want_to_buy=False,
-        preordered=False,
-        for_trade=False,
-        comment=None,
-        last_modified=None,
-        min_players=None,
-        max_players=None,
-        playing_time=None,
-        min_playing_time=None,
-        max_playing_time=None,
-        year=None,
-        thumbnail=None,
-        image=None,
-        bgg_rank=None,
-        boardgame_rank=None,
-        rating_bayes_average=None,
-        rating_average=None,
-        rating_median=None,
-        rating_stddev=None,
-        users_rated=None,
-        **extra,
-    )
 
 
 def _metadata_for_id(bgg_id: int) -> BGGMetadata:
@@ -87,8 +43,8 @@ class DistinctIdCreatesDistinctCopiesTest(TestCase):
         _metadata_for_id(900002)
 
         collection = [
-            _make_collection_record(bgg_id=900001, owned=True),
-            _make_collection_record(bgg_id=900002, owned=False),
+            collection_record(bgg_id=900001, owned=True),
+            collection_record(bgg_id=900002, owned=False),
         ]
 
         result = reconcile(collection)
@@ -103,7 +59,7 @@ class DistinctIdCreatesDistinctCopiesTest(TestCase):
 
         _metadata_for_id(900003)
 
-        record = _make_collection_record(bgg_id=900003, owned=True, quantity=3)
+        record = collection_record(bgg_id=900003, owned=True, quantity=3)
 
         result1 = reconcile([record])
         self.assertEqual(len(result1.imported_created), 1)
@@ -123,13 +79,13 @@ class DistinctIdCreatesDistinctCopiesTest(TestCase):
 
         metadata = BGGMetadata.objects.create(bgg_id=900004, name="Original BGG Name")
 
-        created = reconcile([_make_collection_record(bgg_id=metadata.bgg_id)])
+        created = reconcile([collection_record(bgg_id=metadata.bgg_id)])
         copy = created.imported_created[0]
         self.assertEqual(copy.name, "Original BGG Name")
 
         metadata.name = "Renamed BGG Name"
         metadata.save(update_fields=["name"])
-        reconcile([_make_collection_record(bgg_id=metadata.bgg_id)])
+        reconcile([collection_record(bgg_id=metadata.bgg_id)])
 
         copy.refresh_from_db()
         self.assertEqual(copy.name, "Original BGG Name")
@@ -137,7 +93,7 @@ class DistinctIdCreatesDistinctCopiesTest(TestCase):
     def test_missing_canonical_metadata_creates_no_imported_copy(self):
         """Failed details cannot leave anonymous imported rows behind."""
 
-        result = reconcile([_make_collection_record(bgg_id=900005)])
+        result = reconcile([collection_record(bgg_id=900005)])
 
         self.assertEqual(result.imported_created, [])
         self.assertFalse(BoardGame.objects.filter(imported=True).exists())
@@ -174,7 +130,7 @@ class LocalOnlyRemainsUntouchedTest(TestCase):
         )
 
         collection = [
-            _make_collection_record(bgg_id=900010, owned=True),
+            collection_record(bgg_id=900010, owned=True),
         ]
 
         result = reconcile(collection)
@@ -203,7 +159,7 @@ class LocalOnlyRemainsUntouchedTest(TestCase):
 
         # Reconcile with a different ID (900020 is not in collection).
         collection = [
-            _make_collection_record(bgg_id=900021, owned=True),
+            collection_record(bgg_id=900021, owned=True),
         ]
 
         result = reconcile(collection, complete=True)
@@ -248,7 +204,7 @@ class SoftRemoveOnlyCompleteInputTest(TestCase):
 
         # Collection does NOT include bgg_id=900030.
         collection = [
-            _make_collection_record(bgg_id=900031, owned=True),
+            collection_record(bgg_id=900031, owned=True),
         ]
 
         result = reconcile(collection, complete=False)
@@ -274,7 +230,7 @@ class SoftRemoveOnlyCompleteInputTest(TestCase):
 
         # Collection does NOT include bgg_id=900040.
         collection = [
-            _make_collection_record(bgg_id=900041, owned=True),
+            collection_record(bgg_id=900041, owned=True),
         ]
 
         result = reconcile(collection, complete=True)
@@ -290,13 +246,13 @@ class SoftRemoveOnlyCompleteInputTest(TestCase):
         _metadata_for_id(900051)
 
         # First run: create imported copy for bgg_id=900050.
-        result1 = reconcile([_make_collection_record(bgg_id=900050)])
+        result1 = reconcile([collection_record(bgg_id=900050)])
         self.assertEqual(len(result1.imported_created), 1)
         copy_pk = result1.imported_created[0].pk
 
         # Second run: exclude 900050 (collection has 900051 only).
         result2 = reconcile(
-            [_make_collection_record(bgg_id=900051)],
+            [collection_record(bgg_id=900051)],
             complete=True,
         )
         self.assertEqual(len(result2.removed), 1)
@@ -305,7 +261,7 @@ class SoftRemoveOnlyCompleteInputTest(TestCase):
 
         # Third run: re-include 900050 (should update the existing copy).
         result3 = reconcile(
-            [_make_collection_record(bgg_id=900050)],
+            [collection_record(bgg_id=900050)],
             complete=True,
         )
         self.assertTrue(
@@ -321,7 +277,7 @@ class SoftRemoveOnlyCompleteInputTest(TestCase):
         _metadata_for_id(900060)
 
         collection = [
-            _make_collection_record(bgg_id=900060, owned=True),
+            collection_record(bgg_id=900060, owned=True),
         ]
 
         result = reconcile(collection, complete=True)
@@ -366,7 +322,7 @@ class LocalFieldsSurviveTest(TestCase):
         original = self._setup_imported_with_fields()
 
         collection = [
-            _make_collection_record(bgg_id=900070, owned=True),
+            collection_record(bgg_id=900070, owned=True),
         ]
 
         result = reconcile(collection)
@@ -398,7 +354,7 @@ class LocalFieldsSurviveTest(TestCase):
 
         # Reconcile — local name should survive.
         collection = [
-            _make_collection_record(bgg_id=900070, owned=True),
+            collection_record(bgg_id=900070, owned=True),
         ]
 
         reconcile(collection)
@@ -425,7 +381,7 @@ class LocalFieldsSurviveTest(TestCase):
 
         # Reconcile — empty name should stay empty (no BGG overwrite).
         collection = [
-            _make_collection_record(bgg_id=900071),
+            collection_record(bgg_id=900071),
         ]
 
         reconcile(collection)
@@ -462,8 +418,8 @@ class NoNetworkWritesTest(TestCase):
 
         # Collection includes 900080 and 900081; bg2 is globally absent.
         collection = [
-            _make_collection_record(bgg_id=900080, owned=True),
-            _make_collection_record(bgg_id=900081, owned=True),
+            collection_record(bgg_id=900080, owned=True),
+            collection_record(bgg_id=900081, owned=True),
         ]
 
         reconcile(collection, complete=True)
@@ -484,7 +440,7 @@ class NoNetworkWritesTest(TestCase):
         )
 
         collection = [
-            _make_collection_record(bgg_id=900090, owned=True),
+            collection_record(bgg_id=900090, owned=True),
         ]
 
         reconcile(collection, complete=True)

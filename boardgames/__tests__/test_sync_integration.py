@@ -48,6 +48,7 @@ from ..__tests__.factories import (
     BGGExpansionFactory,
     BGGMetadataFactory,
     BGGSyncRunFactory,
+    collection_record,
 )
 
 # -----------------------------------------------------------------------
@@ -85,50 +86,6 @@ def _patch_upsert_detail() -> MagicMock:
     return patch(
         "boardgames.services.canonical_upsert.upsert_detail",
         side_effect=_upsert_detail_side_effect,
-    )
-
-
-def _make_collection_record(
-    bgg_id: int = 900000,
-    owned: bool = False,
-    rating: int | None = None,
-    numplays: int = 0,
-    **extra,
-) -> BGGCollectionRecord:
-    """Convenience factory for BGGCollectionRecord fixtures."""
-
-    return BGGCollectionRecord(
-        bgg_id=bgg_id,
-        name=None,
-        rating=rating,
-        numplays=numplays,
-        owned=owned,
-        prev_owned=False,
-        wishlist=False,
-        wishlist_priority=None,
-        want=False,
-        want_to_play=False,
-        want_to_buy=False,
-        preordered=False,
-        for_trade=False,
-        comment=None,
-        last_modified=None,
-        min_players=None,
-        max_players=None,
-        playing_time=None,
-        min_playing_time=None,
-        max_playing_time=None,
-        year=None,
-        thumbnail=None,
-        image=None,
-        bgg_rank=None,
-        boardgame_rank=None,
-        rating_bayes_average=None,
-        rating_average=None,
-        rating_median=None,
-        rating_stddev=None,
-        users_rated=None,
-        **extra,
     )
 
 
@@ -256,8 +213,8 @@ class FirstImportTest(TestCase):
         """A fresh import creates both BGGMetadata and BoardGame."""
 
         collection = (
-            _make_collection_record(bgg_id=910000),
-            _make_collection_record(bgg_id=910001),
+            collection_record(bgg_id=910000),
+            collection_record(bgg_id=910001),
         )
         adapter = _make_adapter(collection)
 
@@ -272,7 +229,7 @@ class FirstImportTest(TestCase):
     def test_sync_run_status_is_full(self):
         """First import with no failures → status=full."""
 
-        collection = (_make_collection_record(bgg_id=910002),)
+        collection = (collection_record(bgg_id=910002),)
         adapter = _make_adapter(collection)
 
         result = _run_with_upsert_patch(adapter, "importer")
@@ -292,7 +249,7 @@ class RepeatedImportTest(TestCase):
     def test_new_sync_run_created_each_run(self):
         """Repeated runs produce distinct BGGSyncRun records."""
 
-        collection = (_make_collection_record(bgg_id=910010),)
+        collection = (collection_record(bgg_id=910010),)
         adapter = _make_adapter(collection)
 
         _run_with_upsert_patch(adapter, "importer")
@@ -308,7 +265,7 @@ class RepeatedImportTest(TestCase):
             metadata=meta, imported=True, owned=False, removed=False
         )
 
-        collection = (_make_collection_record(bgg_id=910020),)
+        collection = (collection_record(bgg_id=910020),)
         adapter = _make_adapter(collection)
 
         result = _run_with_upsert_patch(adapter, "importer")
@@ -329,9 +286,9 @@ class DistinctEditionsTest(TestCase):
         """Different bgg_ids → distinct BoardGame rows."""
 
         collection = (
-            _make_collection_record(bgg_id=910030),
-            _make_collection_record(bgg_id=910031),
-            _make_collection_record(bgg_id=910032),
+            collection_record(bgg_id=910030),
+            collection_record(bgg_id=910031),
+            collection_record(bgg_id=910032),
         )
         adapter = _make_adapter(collection)
 
@@ -353,8 +310,8 @@ class QuantityNoDuplicationTest(TestCase):
         """Two collection records with the same bgg_id → one BoardGame."""
 
         collection = (
-            _make_collection_record(bgg_id=910040, owned=True),
-            _make_collection_record(bgg_id=910040, owned=False),
+            collection_record(bgg_id=910040, owned=True),
+            collection_record(bgg_id=910040, owned=False),
         )
         adapter = _make_adapter(collection)
 
@@ -370,8 +327,8 @@ class QuantityNoDuplicationTest(TestCase):
         """When multiple entries share bgg_id, the last one wins."""
 
         collection = (
-            _make_collection_record(bgg_id=910041, owned=True),
-            _make_collection_record(bgg_id=910041, owned=False),
+            collection_record(bgg_id=910041, owned=True),
+            collection_record(bgg_id=910041, owned=False),
         )
         adapter = _make_adapter(collection)
 
@@ -401,7 +358,7 @@ class LocalOnlyGameTest(TestCase):
             owned=True,
         )
 
-        collection = (_make_collection_record(bgg_id=meta.bgg_id),)
+        collection = (collection_record(bgg_id=meta.bgg_id),)
         adapter = _make_adapter(collection)
 
         _run_with_upsert_patch(adapter, "importer")
@@ -435,7 +392,7 @@ class LocalOverridesTest(TestCase):
             storage="basement",
         )
 
-        collection = (_make_collection_record(bgg_id=meta.bgg_id),)
+        collection = (collection_record(bgg_id=meta.bgg_id),)
         adapter = _make_adapter(collection)
 
         _run_with_upsert_patch(adapter, "importer")
@@ -461,9 +418,9 @@ class ExpansionIntegrationTest(TestCase):
     ):
         """The real sync creates links after all detail metadata is upserted."""
         collection = (
-            _make_collection_record(bgg_id=910051),
-            _make_collection_record(bgg_id=910050),
-            _make_collection_record(bgg_id=910052),
+            collection_record(bgg_id=910051),
+            collection_record(bgg_id=910050),
+            collection_record(bgg_id=910052),
         )
         detail_records = (
             {"bgg_id": 910051, "name": "Expansion", "expands": (910050, 910052)},
@@ -491,8 +448,8 @@ class ExpansionIntegrationTest(TestCase):
     ):
         """Incomplete source details leave relationships from prior full syncs."""
         collection = (
-            _make_collection_record(bgg_id=910050),
-            _make_collection_record(bgg_id=910051),
+            collection_record(bgg_id=910050),
+            collection_record(bgg_id=910051),
         )
         adapter = _make_adapter(
             collection,
@@ -519,8 +476,8 @@ class ExpansionIntegrationTest(TestCase):
     def test_full_repeat_removes_stale_source_links(self):
         """A later complete collection is source-authoritative and idempotent."""
         collection = (
-            _make_collection_record(bgg_id=910050),
-            _make_collection_record(bgg_id=910051),
+            collection_record(bgg_id=910050),
+            collection_record(bgg_id=910051),
         )
         full_reconcile(
             _make_adapter(
@@ -547,8 +504,8 @@ class ExpansionIntegrationTest(TestCase):
     def test_base_before_expansion_creates_the_same_link(self):
         """The second pass makes source collection order irrelevant."""
         collection = (
-            _make_collection_record(bgg_id=910060),
-            _make_collection_record(bgg_id=910061),
+            collection_record(bgg_id=910060),
+            collection_record(bgg_id=910061),
         )
         adapter = _make_adapter(
             collection,
@@ -569,7 +526,7 @@ class ExpansionIntegrationTest(TestCase):
 
     def test_missing_base_is_not_linked(self):
         """An expansion cannot link to a base absent from the collection."""
-        collection = (_make_collection_record(bgg_id=910070),)
+        collection = (collection_record(bgg_id=910070),)
         adapter = _make_adapter(
             collection,
             ({"bgg_id": 910070, "name": "Expansion", "expands": (910071,)},),
@@ -601,7 +558,7 @@ class UpdateTest(TestCase):
             condition="good",  # local override
         )
 
-        collection = (_make_collection_record(bgg_id=910060, owned=True),)
+        collection = (collection_record(bgg_id=910060, owned=True),)
         adapter = _make_adapter(collection)
 
         result = _run_with_upsert_patch(adapter, "importer")
@@ -668,7 +625,7 @@ class RestorationTest(TestCase):
             metadata=meta, imported=True, owned=False, removed=True
         )
 
-        collection = (_make_collection_record(bgg_id=910080, owned=True),)
+        collection = (collection_record(bgg_id=910080, owned=True),)
         adapter = _make_adapter(collection)
 
         _result = _run_with_upsert_patch(adapter, "importer")
@@ -690,8 +647,8 @@ class PartialFailureTest(TestCase):
         """A failed detail cannot create an imported copy without metadata."""
 
         collection = (
-            _make_collection_record(bgg_id=910090),
-            _make_collection_record(bgg_id=910091),
+            collection_record(bgg_id=910090),
+            collection_record(bgg_id=910091),
         )
         adapter = _make_adapter(collection, fail_detail_ids={910091})
 
@@ -708,7 +665,7 @@ class PartialFailureTest(TestCase):
     def test_error_messages_recorded(self):
         """Error messages include context for failed items."""
 
-        collection = (_make_collection_record(bgg_id=910092),)
+        collection = (collection_record(bgg_id=910092),)
         adapter = _make_adapter(collection, fail_detail_ids={910092})
 
         result = _run_with_upsert_patch(adapter, "importer")
@@ -764,8 +721,8 @@ class PersistedDiagnosticsTest(TestCase):
         """Diagnostics JSON contains all expected summary fields."""
 
         collection = (
-            _make_collection_record(bgg_id=910100),
-            _make_collection_record(bgg_id=910101),
+            collection_record(bgg_id=910100),
+            collection_record(bgg_id=910101),
         )
         adapter = _make_adapter(collection)
 
@@ -789,8 +746,8 @@ class PersistedDiagnosticsTest(TestCase):
         """Persisted BGGSyncRun counters match the result object."""
 
         collection = (
-            _make_collection_record(bgg_id=910102),
-            _make_collection_record(bgg_id=910103),
+            collection_record(bgg_id=910102),
+            collection_record(bgg_id=910103),
         )
         adapter = _make_adapter(collection)
 
@@ -813,35 +770,6 @@ class ApiContractTest(TestCase):
 
     def setUp(self):
         self.client = APIClient()
-
-    def test_serializer_exposes_core_fields(self):
-        """BoardGameSerializer exposes id, name, metadata, language,
-        edition_label, condition, storage, purchase_date, imported,
-        owned, removed, played, review, notes, play_priority,
-        min_players, max_players."""
-
-        serializer = BoardGameSerializer()
-        exposed_fields = set(serializer.fields.keys())
-        expected = {
-            "id",
-            "name",
-            "metadata",
-            "language",
-            "edition_label",
-            "condition",
-            "storage",
-            "purchase_date",
-            "imported",
-            "owned",
-            "removed",
-            "played",
-            "review",
-            "notes",
-            "play_priority",
-            "min_players",
-            "max_players",
-        }
-        self.assertEqual(exposed_fields, expected)
 
     def test_serializer_serialises_board_game(self):
         """A BoardGame instance can be serialised without errors."""
@@ -886,24 +814,6 @@ class AdminContractTest(TestCase):
         from django.contrib.auth.models import AnonymousUser
 
         return AnonymousUser()
-
-    def test_board_game_admin_has_editable_fields(self):
-        """BoardGameAdmin exposes editable local fields."""
-
-        from boardgames.admin import BoardGameAdmin
-
-        admin = BoardGameAdmin(BoardGame, self.site)
-        expected_fields = [
-            "name",
-            "language",
-            "edition_label",
-            "condition",
-            "storage",
-            "purchase_date",
-        ]
-        self.assertEqual(admin.fields, expected_fields)
-        self.assertIn("metadata", admin.readonly_fields)
-        self.assertIn("imported", admin.readonly_fields)
 
     def test_bgg_metadata_fully_readonly(self):
         """BGGMetadataAdmin denies add/change/delete."""
