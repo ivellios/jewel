@@ -160,6 +160,7 @@ def _make_adapter(
             if rec.get("bgg_id") == bgg_id:
                 return BGGDetailRecord(
                     bgg_id=rec["bgg_id"],
+                    item_type=None,
                     name=rec.get("name"),
                     year=rec.get("year"),
                     min_players=rec.get("min_players"),
@@ -182,7 +183,9 @@ def _make_adapter(
                     users_owned=rec.get("users_owned"),
                     thumbnail=rec.get("thumbnail"),
                     image=rec.get("image"),
+                    bgg_url=None,
                     description=rec.get("description"),
+                    plays_count=None,
                     expansions=rec.get("expansions", ()),
                     expands=rec.get("expands", ()),
                     alternative_names=rec.get("alternative_names", ()),
@@ -194,6 +197,7 @@ def _make_adapter(
                 )
         return BGGDetailRecord(
             bgg_id=bgg_id,
+            item_type=None,
             name=f"Game {bgg_id}",
             year=None,
             min_players=None,
@@ -216,7 +220,9 @@ def _make_adapter(
             users_owned=None,
             thumbnail=None,
             image=None,
+            bgg_url=None,
             description=None,
+            plays_count=None,
             expansions=(),
             expands=(),
             alternative_names=(),
@@ -471,9 +477,7 @@ class ExpansionIntegrationTest(TestCase):
 
         _run_with_upsert_patch(adapter, "importer")
 
-        # The mock does not call _upsert_expansion_links; create the
-        # expansion link manually to verify the link semantics.
-        link = BGGExpansion.objects.create(expansion=exp_meta, parent=base_meta)
+        link = BGGExpansion.objects.get(expansion=exp_meta, parent=base_meta)
 
         self.assertEqual(BGGExpansion.objects.count(), 1)
         self.assertEqual(link.expansion.bgg_id, 910051)
@@ -542,9 +546,8 @@ class UpdateTest(TestCase):
 class RemovalTest(TestCase):
     """Verify that missing imported copies are soft-removed."""
 
-    def test_missing_copy_outside_batch_not_removed(self):
-        """When a previously imported game is not in the current batch,
-        it is NOT removed (outside batch logic)."""
+    def test_missing_copy_is_removed_by_complete_empty_collection(self):
+        """A complete empty collection removes globally missing imports."""
 
         meta = BGGMetadata.objects.create(bgg_id=910070, name="Old Game")
         BoardGame.objects.create(
@@ -556,7 +559,7 @@ class RemovalTest(TestCase):
         _run_with_upsert_patch(adapter, "importer")
 
         game = BoardGame.objects.get(metadata=meta)
-        self.assertFalse(game.removed)
+        self.assertTrue(game.removed)
 
     def test_local_game_never_removed(self):
         """Local (imported=False) copies are never removed."""
@@ -608,8 +611,8 @@ class RestorationTest(TestCase):
 class PartialFailureTest(TestCase):
     """Verify that partial detail-fetch failures are handled gracefully."""
 
-    def test_failed_item_gets_metadata_none(self):
-        """When a detail fetch fails, BoardGame is created with metadata=None."""
+    def test_failed_item_creates_no_anonymous_imported_copy(self):
+        """A failed detail cannot create an imported copy without metadata."""
 
         collection = (
             _make_collection_record(bgg_id=910090),
@@ -623,10 +626,9 @@ class PartialFailureTest(TestCase):
         self.assertTrue(result.fetch_successful)
         self.assertEqual(result.items_failed, 1)
 
-        # Failed item has no BGGMetadata link.
-        fail_game = BoardGame.objects.get(metadata__bgg_id__isnull=True)
-        self.assertIsNone(fail_game.metadata)
-        self.assertTrue(fail_game.imported)
+        self.assertFalse(
+            BoardGame.objects.filter(imported=True, metadata__isnull=True).exists()
+        )
 
     def test_error_messages_recorded(self):
         """Error messages include context for failed items."""

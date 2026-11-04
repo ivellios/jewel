@@ -15,7 +15,7 @@ from django.db import IntegrityError
 from django.test import TestCase
 
 from boardgames.bgg import BGGCollectionRecord
-from boardgames.models import BGGMetadata, BoardGame
+from boardgames.models import BGGCollectionObservation, BGGMetadata, BoardGame
 from boardgames.services import reconcile
 
 from ..__tests__.factories import (
@@ -115,6 +115,8 @@ class DistinctIdCreatesDistinctCopiesTest(TestCase):
             BoardGame.objects.filter(imported=True, metadata__bgg_id=900003).count(),
             1,
         )
+        observation = BGGCollectionObservation.objects.get(metadata__bgg_id=900003)
+        self.assertEqual(observation.quantity, 3)
 
     def test_new_imported_copy_snapshots_canonical_name(self):
         """New imported copies keep their initial BGG name as a local value."""
@@ -256,12 +258,7 @@ class SoftRemoveOnlyCompleteInputTest(TestCase):
         self.assertFalse(refreshed.removed)
 
     def test_complete_true_soft_removes_missing(self):
-        """With complete=True, missing imported rows are soft-removed.
-
-        Updated for the corrected implementation: only copies whose
-        bgg_id is in the current collection batch are considered;
-        copies outside the batch are never subject to reconciliation.
-        """
+        """A complete collection removes imported rows missing globally."""
 
         _metadata_for_id(900040)
         _metadata_for_id(900041)
@@ -282,20 +279,12 @@ class SoftRemoveOnlyCompleteInputTest(TestCase):
 
         result = reconcile(collection, complete=True)
 
-        # The copy with bgg_id outside the collection batch is not
-        # subject to reconciliation at all — no removal, no update.
-        self.assertEqual(len(result.removed), 0)
+        self.assertEqual(len(result.removed), 1)
         refreshed = BoardGame.objects.get(pk=missing_game.pk)
-        self.assertFalse(refreshed.removed)
+        self.assertTrue(refreshed.removed)
 
     def test_reappearing_row_restores(self):
-        """A row that was removed reappears when re-collected (complete).
-
-        Updated for the corrected implementation: when a bgg_id is
-        excluded from the collection batch, the existing copy is simply
-        left alone (not removed).  When re-included, the existing copy
-        is found and updated.
-        """
+        """A row removed by a complete collection is restored when it reappears."""
 
         _metadata_for_id(900050)
         _metadata_for_id(900051)
@@ -306,16 +295,13 @@ class SoftRemoveOnlyCompleteInputTest(TestCase):
         copy_pk = result1.imported_created[0].pk
 
         # Second run: exclude 900050 (collection has 900051 only).
-        # With the fix, copies outside the batch are not subject to
-        # reconciliation — the copy is left as-is (not removed).
         result2 = reconcile(
             [_make_collection_record(bgg_id=900051)],
             complete=True,
         )
-        self.assertEqual(len(result2.removed), 0)
-        # The original copy remains untouched (not removed, still owned=False).
+        self.assertEqual(len(result2.removed), 1)
         refreshed = BoardGame.objects.get(pk=copy_pk)
-        self.assertFalse(refreshed.removed)
+        self.assertTrue(refreshed.removed)
 
         # Third run: re-include 900050 (should update the existing copy).
         result3 = reconcile(
@@ -325,6 +311,7 @@ class SoftRemoveOnlyCompleteInputTest(TestCase):
         self.assertTrue(
             len(result3.imported_updated) > 0 or len(result3.imported_created) > 0,
         )
+        self.assertEqual(len(result3.restored), 1)
         restored = BoardGame.objects.get(pk=copy_pk)
         self.assertFalse(restored.removed)
 
@@ -465,7 +452,7 @@ class NoNetworkWritesTest(TestCase):
             owned=False,
             removed=False,
         )
-        # bg2: bgg_id 900082 (NOT in the collection → not touched).
+        # bg2: bgg_id 900082 (NOT in the complete collection → soft-removed).
         bg2 = BoardGame.objects.create(
             metadata=BGGMetadata.objects.get(bgg_id=900082),
             imported=True,
@@ -473,9 +460,7 @@ class NoNetworkWritesTest(TestCase):
             removed=False,
         )
 
-        # Collection includes 900080 and 900081; bg2 (bgg 900082) is
-        # outside the collection batch and is not subject to
-        # reconciliation — it remains untouched (not removed).
+        # Collection includes 900080 and 900081; bg2 is globally absent.
         collection = [
             _make_collection_record(bgg_id=900080, owned=True),
             _make_collection_record(bgg_id=900081, owned=True),
@@ -486,8 +471,7 @@ class NoNetworkWritesTest(TestCase):
         # Both rows must still exist (soft-remove, not hard-delete).
         self.assertEqual(BoardGame.objects.filter(pk=bg1.pk).count(), 1)
         self.assertEqual(BoardGame.objects.filter(pk=bg2.pk).count(), 1)
-        # bg2 should NOT be removed (outside the collection batch).
-        self.assertFalse(BoardGame.objects.get(pk=bg2.pk).removed)
+        self.assertTrue(BoardGame.objects.get(pk=bg2.pk).removed)
 
     def test_local_only_games_survive_complete_true(self):
         """Local-only rows are never removed even with complete=True."""

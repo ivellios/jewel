@@ -477,6 +477,30 @@ class PartialFailureTest(TestCase):
             BoardGame.objects.filter(imported=True, metadata__isnull=True).exists()
         )
 
+    def test_partial_run_never_removes_globally_missing_imports(self):
+        """A failed required item makes the whole collection non-authoritative."""
+
+        missing_metadata = BGGMetadata.objects.create(
+            bgg_id=900399,
+            name="Must stay during partial sync",
+        )
+        missing_copy = BoardGame.objects.create(
+            metadata=missing_metadata,
+            imported=True,
+            removed=False,
+        )
+        collection = (
+            _make_collection_record(bgg_id=900398),
+            _make_collection_record(bgg_id=900397),
+        )
+        adapter = _make_adapter(collection, fail_detail_ids={900397})
+
+        result = _run_with_upsert_patch(adapter, "testuser")
+
+        self.assertEqual(result.bgg_sync_run.status, BGGSyncRunStatus.PARTIAL)
+        missing_copy.refresh_from_db()
+        self.assertFalse(missing_copy.removed)
+
 
 # -----------------------------------------------------------------------
 
@@ -676,16 +700,10 @@ class IntegrationWithModelsTest(TestCase):
 
 
 class MixedFailureTest(TestCase):
-    """Verify items_failed counts only detail fetch errors, not upsert errors.
+    """Verify detail and canonical-persistence failures make a run partial."""
 
-    When a detail fetch fails AND a successful detail's upsert also fails,
-    ``items_failed`` must reflect only the detail fetch failure count.
-    ``error_messages`` must contain errors from both categories.
-    """
-
-    def test_items_failed_excludes_upsert_errors(self):
-        """items_failed equals detail fetch failures only, even when upsert
-        also fails for a successful item."""
+    def test_items_failed_includes_upsert_errors(self):
+        """Every required item failure is reflected in the run counter."""
 
         collection = (
             _make_collection_record(bgg_id=902000),  # detail succeeds
@@ -703,9 +721,8 @@ class MixedFailureTest(TestCase):
             fail_upsert_bgg_ids={902002},
         )
 
-        # Only 1 detail fetch failed (902001).
-        self.assertEqual(result.items_failed, 1)
-        self.assertEqual(result.bgg_sync_run.items_failed, 1)
+        self.assertEqual(result.items_failed, 2)
+        self.assertEqual(result.bgg_sync_run.items_failed, 2)
         self.assertEqual(result.items_fetched, 2)
 
         # Verify error message content: one detail error, one upsert error.
@@ -742,9 +759,9 @@ class MixedFailureTest(TestCase):
 
         sync_run = BGGSyncRun.objects.get(pk=result.bgg_sync_run.pk)
 
-        # items_failed is 1 (detail failure for 902101).
-        self.assertEqual(result.items_failed, 1)
-        self.assertEqual(sync_run.items_failed, 1)
+        # Both the detail and canonical upsert failed.
+        self.assertEqual(result.items_failed, 2)
+        self.assertEqual(sync_run.items_failed, 2)
 
         # error_messages contains both detail + upsert = 2.
         self.assertEqual(len(result.error_messages), 2)

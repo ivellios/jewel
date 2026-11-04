@@ -7,14 +7,13 @@ synchronous management command:
 
 Lifecycle semantics
 
-* A fully successful collection fetch (no network / credential error)
-  sets ``fetch_successful=True`` and authorises deletion of missing
-  imported copies (``complete=True`` passed to ``reconcile``).
+* Only a fully successful collection fetch with every detail and canonical
+  upsert succeeding authorises deletion of missing imported copies.
 * A failing collection fetch (network / credential error) sets
   ``fetch_successful=False`` — missing imported copies are **never**
   removed.
-* Per-item detail / upsert failures are recorded; the run proceeds
-  with whatever items succeeded.
+* Per-item detail / upsert failures are recorded; successful items are
+  reconciled without authorising removals.
 * ``status`` is ``full`` when all items succeed, ``partial`` when some
   fail, and ``failed`` when the collection fetch itself fails (no
   items processed).
@@ -36,9 +35,9 @@ import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
-from django.db import transaction
+from django.db import DatabaseError, transaction
 
-from boardgames.bgg import BGGDetailRecord, BGGRepositoryProtocol
+from boardgames.bgg import BGGCollectionRecord, BGGDetailRecord, BGGRepositoryProtocol
 from boardgames.bgg.errors import (
     BGGAdapterError,
     BGGCredentialMissingError,
@@ -171,14 +170,14 @@ def full_reconcile(
 
     # Fetch succeeded.
     collection_count = len(collection)
-    detail_records: list[BGGDetailRecord] = []
+    detail_records: list[tuple[BGGCollectionRecord, BGGDetailRecord]] = []
     error_messages: list[str] = []
     detail_failed_count = 0
 
     for idx, col_record in enumerate(collection, start=1):
         try:
             detail = repository.get_detail(col_record.bgg_id)
-            detail_records.append(detail)
+            detail_records.append((col_record, detail))
             sync_run.items_fetched = idx
         except (BGGNotFoundError, BGGNetworkError, BGGAdapterError) as exc:
             error_messages.append(
@@ -192,26 +191,28 @@ def full_reconcile(
             error_messages = error_messages[-MAX_ERROR_MESSAGES:]
 
     sync_run.items_total = collection_count
-    sync_run.items_failed = detail_failed_count
-
     # Upsert canonical metadata for each successful detail.
-    for detail in detail_records:
+    reconciled_collection = []
+    for col_record, detail in detail_records:
         try:
             upsert_detail(detail)
-        except BGGAdapterError as exc:
+            reconciled_collection.append(col_record)
+        except (BGGAdapterError, DatabaseError) as exc:
             error_messages.append(
                 f"Upsert bgg_id={detail.bgg_id}: {type(exc).__name__}: {exc}"
             )
+            detail_failed_count += 1
 
-    # Persist detail-failure count (separate from total error_messages
-    # which also includes upsert errors).
+    # Any detail or canonical-persistence failure makes this input incomplete.
     sync_run.items_failed = detail_failed_count
 
-    # Reconcile imported copies — only authorise removal when
-    # fetch_successful=True (full collection fetch).
+    # Reconcile only records whose detail and canonical upsert both succeeded.
+    # Missing imported copies can change state only for a fully authoritative
+    # collection: a successful fetch with no required item failures.
     result = reconcile(
-        collection,
-        complete=fetch_successful,
+        reconciled_collection,
+        complete=fetch_successful and not detail_failed_count,
+        sync_run=sync_run,
     )
 
     # Compute status.
@@ -233,6 +234,7 @@ def full_reconcile(
         diagnostics={
             "collection_count": collection_count,
             "detail_records": len(detail_records),
+            "authoritative": fetch_successful and not detail_failed_count,
             "imported_created": len(result.imported_created),
             "imported_updated": len(result.imported_updated),
             "removed": len(result.removed),
