@@ -127,9 +127,12 @@ def reconcile(
                 _update_copy(matching, record)
                 result.imported_updated.append(matching)
             else:
-                # New imported copy — create with metadata link.
+                # New imported copies require canonical metadata. A failed
+                # detail fetch without it is retried on the next sync rather
+                # than creating an anonymous imported row.
                 new_copy = _create_copy(record)
-                result.imported_created.append(new_copy)
+                if new_copy is not None:
+                    result.imported_created.append(new_copy)
 
         # Handle removal when complete.
         if complete:
@@ -192,21 +195,22 @@ def _update_copy(copy: BoardGame, record: BGGCollectionRecord) -> None:
         copy.save(update_fields=["owned"])
 
 
-def _create_copy(record: BGGCollectionRecord) -> BoardGame:
+def _create_copy(record: BGGCollectionRecord) -> BoardGame | None:
     """Create a new imported BoardGame copy linked to existing metadata.
 
     If the item's detail fetch failed and no ``BGGMetadata`` row exists,
-    the ``metadata`` FK is left null — the column is intentionally
-    nullable, so partial-failure reconciliation never crashes.
+    no row is created. Imported copies must retain their canonical source
+    identity, so a later successful detail fetch can create one safely.
     """
 
     try:
         metadata = BGGMetadata.objects.get(bgg_id=record.bgg_id)
     except BGGMetadata.DoesNotExist:
-        metadata = None
+        return None
 
     return BoardGame.objects.create(
         metadata=metadata,
+        name=metadata.name,
         imported=True,
         owned=record.owned,
     )

@@ -181,6 +181,7 @@ def _make_adapter(
             if rec.get("bgg_id") == bgg_id:
                 return BGGDetailRecord(
                     bgg_id=rec["bgg_id"],
+                    item_type=None,
                     name=rec.get("name"),
                     year=rec.get("year"),
                     min_players=rec.get("min_players"),
@@ -203,7 +204,9 @@ def _make_adapter(
                     users_owned=rec.get("users_owned"),
                     thumbnail=rec.get("thumbnail"),
                     image=rec.get("image"),
+                    bgg_url=None,
                     description=rec.get("description"),
+                    plays_count=None,
                     expansions=rec.get("expansions", ()),
                     expands=rec.get("expands", ()),
                     alternative_names=rec.get("alternative_names", ()),
@@ -216,6 +219,7 @@ def _make_adapter(
         # Default success for unlisted IDs (no detail override).
         return BGGDetailRecord(
             bgg_id=bgg_id,
+            item_type=None,
             name=f"Game {bgg_id}",
             year=None,
             min_players=None,
@@ -238,7 +242,9 @@ def _make_adapter(
             users_owned=None,
             thumbnail=None,
             image=None,
+            bgg_url=None,
             description=None,
+            plays_count=None,
             expansions=(),
             expands=(),
             alternative_names=(),
@@ -440,8 +446,7 @@ class PartialFailureTest(TestCase):
         self.assertIn("Item 2/2", result.error_messages[0])
 
     def test_partial_failure_without_pre_created_metadata(self):
-        """When a failing item has no BGGMetadata, BoardGame is created with
-        metadata=None — partial-failure never crashes."""
+        """A failed detail without metadata does not create an anonymous copy."""
 
         collection = (
             _make_collection_record(bgg_id=900300),
@@ -461,17 +466,16 @@ class PartialFailureTest(TestCase):
         self.assertTrue(result.fetch_successful)
         self.assertEqual(result.items_fetched, 1)
         self.assertEqual(result.items_failed, 1)
-        self.assertEqual(result.imported_created, 2)
+        self.assertEqual(result.imported_created, 1)
 
         # Successful item has BoardGame linked to BGGMetadata.
         success_game = BoardGame.objects.get(metadata__bgg_id=900300)
         self.assertIsNotNone(success_game.metadata)
         self.assertEqual(success_game.metadata.bgg_id, 900300)
 
-        # Failed item gets BoardGame with metadata=None (never crashes).
-        fail_game = BoardGame.objects.get(metadata__bgg_id__isnull=True)
-        self.assertIsNone(fail_game.metadata)
-        self.assertEqual(fail_game.imported, True)
+        self.assertFalse(
+            BoardGame.objects.filter(imported=True, metadata__isnull=True).exists()
+        )
 
 
 # -----------------------------------------------------------------------

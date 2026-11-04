@@ -11,6 +11,7 @@ Tests:
 * Incomplete input cannot authorize removals.
 """
 
+from django.db import IntegrityError
 from django.test import TestCase
 
 from boardgames.bgg import BGGCollectionRecord
@@ -98,11 +99,11 @@ class DistinctIdCreatesDistinctCopiesTest(TestCase):
         self.assertEqual(bgg_ids, {900001, 900002})
 
     def test_same_id_quantity_creates_no_duplicates(self):
-        """Calling reconcile twice with the same BGG ID does not duplicate."""
+        """Collection quantity and repeat runs do not duplicate a source copy."""
 
         _metadata_for_id(900003)
 
-        record = _make_collection_record(bgg_id=900003, owned=True)
+        record = _make_collection_record(bgg_id=900003, owned=True, quantity=3)
 
         result1 = reconcile([record])
         self.assertEqual(len(result1.imported_created), 1)
@@ -114,6 +115,36 @@ class DistinctIdCreatesDistinctCopiesTest(TestCase):
             BoardGame.objects.filter(imported=True, metadata__bgg_id=900003).count(),
             1,
         )
+
+    def test_new_imported_copy_snapshots_canonical_name(self):
+        """New imported copies keep their initial BGG name as a local value."""
+
+        metadata = BGGMetadata.objects.create(bgg_id=900004, name="Original BGG Name")
+
+        created = reconcile([_make_collection_record(bgg_id=metadata.bgg_id)])
+        copy = created.imported_created[0]
+        self.assertEqual(copy.name, "Original BGG Name")
+
+        metadata.name = "Renamed BGG Name"
+        metadata.save(update_fields=["name"])
+        reconcile([_make_collection_record(bgg_id=metadata.bgg_id)])
+
+        copy.refresh_from_db()
+        self.assertEqual(copy.name, "Original BGG Name")
+
+    def test_missing_canonical_metadata_creates_no_imported_copy(self):
+        """Failed details cannot leave anonymous imported rows behind."""
+
+        result = reconcile([_make_collection_record(bgg_id=900005)])
+
+        self.assertEqual(result.imported_created, [])
+        self.assertFalse(BoardGame.objects.filter(imported=True).exists())
+
+    def test_imported_copy_requires_canonical_metadata(self):
+        """The database rejects imported rows without a stable source identity."""
+
+        with self.assertRaises(IntegrityError):
+            BoardGame.objects.create(imported=True)
 
 
 class LocalOnlyRemainsUntouchedTest(TestCase):

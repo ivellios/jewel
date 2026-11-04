@@ -235,17 +235,18 @@ class BoardGame(CollectionItem):
     cross-referenced copies all coexist without automatic side effects.
 
     - ``metadata`` (nullable FK) -- BGG canonical metadata this copy
-      was imported from; ``None`` means local-only/manual.
+      was imported from; ``None`` means local-only/manual. Imported rows
+      always have metadata, which is their stable BGG source identity.
     - ``language`` -- local language label for this physical copy.
     - ``edition_label`` -- free-text edition description.
-    - ``name`` -- editable local name; when ``None`` the parent
-      CollectionItem / BGGMetadata name is displayed.
+    - ``name`` -- editable local name. Imported rows initialize it from the
+      canonical source name as a local snapshot.
     - ``condition``, ``storage``, ``purchase_date`` -- copy-specific
       physical details.
     - ``imported`` -- ``True`` when the row was created by a BGG
-      import/sync; ``False`` for local/manual rows.  Distinct BGG
-      metadata IDs can produce distinct copies; multiple copies may
-      share the same metadata record.
+      import/sync; ``False`` for local/manual rows.  There is at most one
+      imported copy per BGG metadata record; local/manual copies may share
+      that metadata record.
     - ``owned`` -- explicit ownership flag (no inference).
     - ``removed`` -- reversible removal flag (no cascade or
       hard-delete side effects).  One BoardGame row = one local copy.
@@ -329,6 +330,17 @@ class BoardGame(CollectionItem):
         ordering = ["metadata__bgg_id", "id"]
         verbose_name = "Board game (local copy)"
         verbose_name_plural = "Board games (local copies)"
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(imported=False) | models.Q(metadata__isnull=False),
+                name="boardgames_imported_copy_requires_metadata",
+            ),
+            models.UniqueConstraint(
+                fields=["metadata"],
+                condition=models.Q(imported=True),
+                name="boardgames_one_imported_copy_per_metadata",
+            ),
+        ]
 
     def __str__(self) -> str:
         if self.name:
