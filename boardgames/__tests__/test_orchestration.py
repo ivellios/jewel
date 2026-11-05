@@ -213,6 +213,9 @@ def _make_adapter(
         )
 
     mock.get_detail.side_effect = _get_detail_side_effect
+    mock.get_details.side_effect = lambda bgg_ids: tuple(
+        _get_detail_side_effect(bgg_id) for bgg_id in bgg_ids
+    )
     return mock
 
 
@@ -247,6 +250,45 @@ def _run_with_upsert_patch(
 
 class FullSuccessTest(TestCase):
     """Verify successful full collection behaviour."""
+
+    def test_persists_each_game_before_reporting_its_progress(self):
+        collection = (
+            collection_record(bgg_id=900140),
+            collection_record(bgg_id=900141),
+        )
+        adapter = _make_adapter(collection)
+
+        def check_first_item_persisted(completed, _total):
+            if completed == 1:
+                self.assertTrue(BGGMetadata.objects.filter(bgg_id=900140).exists())
+                self.assertTrue(
+                    BoardGame.objects.filter(
+                        metadata__bgg_id=900140,
+                        imported=True,
+                    ).exists()
+                )
+
+        with _patch_upsert_detail():
+            full_reconcile(
+                adapter,
+                "testuser",
+                progress_callback=check_first_item_persisted,
+            )
+
+    def test_detail_requests_are_batched_in_groups_of_twenty(self):
+        collection = tuple(
+            collection_record(bgg_id=901000 + offset) for offset in range(41)
+        )
+        adapter = _make_adapter(collection)
+
+        with _patch_upsert_detail():
+            full_reconcile(adapter, "testuser")
+
+        assert [len(call.args[0]) for call in adapter.get_details.call_args_list] == [
+            20,
+            20,
+            1,
+        ]
 
     def test_progress_callback_reports_collection_and_each_item(self):
         collection = (

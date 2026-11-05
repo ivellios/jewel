@@ -81,7 +81,7 @@ class BGGClient:
             ids=list(ids) if ids else None,
             **filters,
         )
-        return tuple(collection._items)
+        return collection._items
 
     def plays(
         self,
@@ -105,7 +105,8 @@ class BGGClient:
 
     def game_list(self, game_ids: Iterable[int]) -> Any:
         """Return raw responses for several games."""
-        return self._call(game_ids, self._client.game_list, game_ids)
+        ids = list(game_ids)
+        return self._call(ids, self._client.game_list, ids)
 
     def search(
         self,

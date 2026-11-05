@@ -16,9 +16,10 @@ from ..models import (
 
 def collection_record(
     bgg_id: int = 900000,
-    owned: bool = False,
+    owned: bool = True,
     rating: int | None = None,
     numplays: int = 0,
+    want_to_play: bool = False,
     **extra,
 ) -> BGGCollectionRecord:
     """Build a collection record with source fields defaulted to absent."""
@@ -32,7 +33,7 @@ def collection_record(
         wishlist=False,
         wishlist_priority=None,
         want=False,
-        want_to_play=False,
+        want_to_play=want_to_play,
         want_to_buy=False,
         preordered=False,
         for_trade=False,

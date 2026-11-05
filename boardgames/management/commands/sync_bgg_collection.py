@@ -136,7 +136,7 @@ class Command(BaseCommand):
             timeout=request_timeout,
         )
 
-        with tqdm(desc="Fetching BGG game details", unit="game") as progress:
+        with tqdm(desc="Syncing BGG games", unit="game") as progress:
 
             def report_progress(completed: int, total: int) -> None:
                 if progress.total != total:

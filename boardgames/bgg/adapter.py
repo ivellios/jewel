@@ -56,6 +56,15 @@ class BGGDetailRecord:
 
 
 @dataclass(frozen=True)
+class BGGExpansionRelations:
+    """Compact relationship data retained until collection-wide sync."""
+
+    bgg_id: int
+    expansions: tuple[int, ...]
+    expands: tuple[int, ...]
+
+
+@dataclass(frozen=True)
 class BGGCollectionRecord:
     """A single configured-account collection observation."""
 
@@ -90,6 +99,11 @@ class BGGCollectionRecord:
     rating_stddev: float | None
     users_rated: int | None
     quantity: int = 0
+    version_id: int | None = None
+    version_name: str | None = None
+    version_language: str | None = None
+    version_year: int | None = None
+    version_publisher: str | None = None
 
 
 @dataclass(frozen=True)
@@ -129,6 +143,12 @@ def normalize_detail(raw: RawResponse) -> BGGDetailRecord:
     publishers = _strings(_value(raw, "publishers"))
     mechanics = _strings(_value(raw, "mechanics"))
     categories = _strings(_value(raw, "categories"))
+    item_type = _text(_value(raw, "thing_type", "type"))
+    if item_type is None:
+        if _boolean(_value(raw, "expansion")):
+            item_type = "boardgameexpansion"
+        elif _boolean(_value(raw, "accessory")):
+            item_type = "boardgameaccessory"
     return BGGDetailRecord(
         bgg_id=_required_id(raw),
         name=_text(_value(raw, "name")),
@@ -154,9 +174,9 @@ def normalize_detail(raw: RawResponse) -> BGGDetailRecord:
         thumbnail=_text(_value(raw, "thumbnail")),
         image=_text(_value(raw, "image")),
         description=_text(_value(raw, "description")),
-        item_type=_text(_value(raw, "thing_type", "type")),
+        item_type=item_type,
         bgg_url=_text(_value(raw, "objecturl", "bgg_url")),
-        plays_count=_non_negative_integer(_value(raw, "plays_count")),
+        plays_count=_integer(_value(raw, "plays_count")),
         expansions=_related_ids(_value(raw, "expansions")),
         expands=_related_ids(_value(raw, "expands")),
         alternative_names=_strings(_value(raw, "alternative_names")),
@@ -172,6 +192,7 @@ def normalize_collection_item(raw: RawResponse) -> BGGCollectionRecord:
     """Normalize one raw collection mapping without performing I/O."""
 
     stats = _value(raw, "stats")
+    version = _value(raw, "version")
     return BGGCollectionRecord(
         bgg_id=_required_id(raw),
         name=_text(_value(raw, "name")),
@@ -204,6 +225,11 @@ def normalize_collection_item(raw: RawResponse) -> BGGCollectionRecord:
         rating_stddev=_number(_stat(raw, stats, "rating_stddev")),
         users_rated=_integer(_stat(raw, stats, "users_rated")),
         quantity=_non_negative_integer(_value(raw, "numowned", "quantity")),
+        version_id=_integer(_value(version, "id")),
+        version_name=_text(_value(version, "name")),
+        version_language=_text(_value(version, "language")),
+        version_year=_integer(_value(version, "year", "yearpublished")),
+        version_publisher=_text(_value(version, "publisher")),
     )
 
 

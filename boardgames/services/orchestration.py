@@ -33,12 +33,18 @@ import json
 import logging
 import time
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
 from django.db import DatabaseError, transaction
 
-from boardgames.bgg import BGGCollectionRecord, BGGDetailRecord, BGGRepositoryProtocol
+from boardgames.bgg import (
+    BGGCollectionRecord,
+    BGGDetailRecord,
+    BGGExpansionRelations,
+    BGGRepositoryProtocol,
+)
 from boardgames.bgg.errors import (
     BGGAdapterError,
     BGGCredentialMissingError,
@@ -53,7 +59,7 @@ from boardgames.services.canonical_upsert import (
     synchronize_expansion_links,
     upsert_detail,
 )
-from boardgames.services.reconciliation import reconcile
+from boardgames.services.reconciliation import reconcile, remove_missing_imports
 
 logger = logging.getLogger(__name__)
 
@@ -61,6 +67,8 @@ logger = logging.getLogger(__name__)
 MAX_ERROR_MESSAGES = 50
 # Maximum length per individual error message string.
 MAX_ERROR_LENGTH = 500
+# The installed boardgamegeek client supports at most 20 IDs per thing request.
+DETAIL_BATCH_SIZE = 20
 
 # ---------------------------------------------------------------------------
 # Return type
@@ -181,61 +189,124 @@ def full_reconcile(
     if progress_callback is not None:
         progress_callback(0, collection_count)
 
-    detail_records: list[tuple[BGGCollectionRecord, BGGDetailRecord]] = []
+    expansion_records: list[BGGExpansionRelations] = []
     error_messages: list[str] = []
     detail_failed_count = 0
+    items_fetched = 0
+    imported_created = 0
+    imported_updated = 0
+    restored = 0
 
-    for idx, col_record in enumerate(collection, start=1):
-        try:
-            detail = repository.get_detail(col_record.bgg_id)
-            detail_records.append((col_record, detail))
-            sync_run.items_fetched = idx
-        except (BGGNotFoundError, BGGNetworkError, BGGAdapterError) as exc:
-            error_messages.append(
-                f"Item {idx}/{collection_count} (bgg_id={col_record.bgg_id}): "
-                f"{type(exc).__name__}: {exc}"
+    collection_items = iter(enumerate(collection, start=1))
+
+    def next_batch() -> list[tuple[int, BGGCollectionRecord]]:
+        batch: list[tuple[int, BGGCollectionRecord]] = []
+        for _ in range(DETAIL_BATCH_SIZE):
+            item = next(collection_items, None)
+            if item is None:
+                break
+            batch.append(item)
+        return batch
+
+    current_batch = next_batch()
+    with ThreadPoolExecutor(max_workers=1, thread_name_prefix="bgg-detail") as executor:
+        detail_future = (
+            executor.submit(
+                _fetch_detail_batch,
+                repository,
+                [record.bgg_id for _, record in current_batch],
             )
-            detail_failed_count += 1
-        finally:
-            if progress_callback is not None:
-                progress_callback(idx, collection_count)
+            if current_batch
+            else None
+        )
 
-        # Bounded error storage.
-        if len(error_messages) > MAX_ERROR_MESSAGES:
-            error_messages = error_messages[-MAX_ERROR_MESSAGES:]
+        while current_batch:
+            try:
+                assert detail_future is not None
+                batch_results = detail_future.result()
+            except (BGGNotFoundError, BGGNetworkError, BGGAdapterError) as exc:
+                batch_results = {record.bgg_id: exc for _, record in current_batch}
+
+            # Prefetch the next bounded batch while this batch is persisted.
+            next_items = next_batch()
+            detail_future = (
+                executor.submit(
+                    _fetch_detail_batch,
+                    repository,
+                    [record.bgg_id for _, record in next_items],
+                )
+                if next_items
+                else None
+            )
+
+            for idx, col_record in current_batch:
+                detail_result = batch_results.get(col_record.bgg_id)
+                if isinstance(
+                    detail_result,
+                    BGGNotFoundError | BGGNetworkError | BGGAdapterError,
+                ):
+                    error_messages.append(
+                        f"Item {idx}/{collection_count} (bgg_id={col_record.bgg_id}): "
+                        f"{type(detail_result).__name__}: {detail_result}"
+                    )
+                    detail_failed_count += 1
+                elif detail_result is None:
+                    error_messages.append(
+                        f"Item {idx}/{collection_count} (bgg_id={col_record.bgg_id}): "
+                        "BGGAdapterError: detail missing from batch result"
+                    )
+                    detail_failed_count += 1
+                else:
+                    items_fetched += 1
+                    try:
+                        upsert_detail(detail_result)
+                        expansion_records.append(
+                            BGGExpansionRelations(
+                                bgg_id=detail_result.bgg_id,
+                                expansions=detail_result.expansions,
+                                expands=detail_result.expands,
+                            )
+                        )
+                        item_result = reconcile(
+                            (col_record,),
+                            complete=False,
+                            sync_run=sync_run,
+                        )
+                        imported_created += len(item_result.imported_created)
+                        imported_updated += len(item_result.imported_updated)
+                        restored += len(item_result.restored)
+                    except (BGGAdapterError, DatabaseError) as exc:
+                        error_messages.append(
+                            f"Item {idx}/{collection_count} "
+                            f"(bgg_id={col_record.bgg_id}): "
+                            f"{type(exc).__name__}: {exc}"
+                        )
+                        detail_failed_count += 1
+
+                if progress_callback is not None:
+                    progress_callback(idx, collection_count)
+
+            # Bounded error storage.
+            if len(error_messages) > MAX_ERROR_MESSAGES:
+                error_messages = error_messages[-MAX_ERROR_MESSAGES:]
+
+            current_batch = next_items
 
     sync_run.items_total = collection_count
-    # Upsert canonical metadata for each successful detail.
-    reconciled_collection = []
-    for col_record, detail in detail_records:
-        try:
-            upsert_detail(detail)
-            reconciled_collection.append(col_record)
-        except (BGGAdapterError, DatabaseError) as exc:
-            error_messages.append(
-                f"Upsert bgg_id={detail.bgg_id}: {type(exc).__name__}: {exc}"
-            )
-            detail_failed_count += 1
 
     # Relationship state is safe to reconcile only once every authoritative
     # detail was fetched and its canonical metadata was persisted.
     if fetch_successful and not detail_failed_count:
         synchronize_expansion_links(
-            (detail for _col_record, detail in detail_records),
+            expansion_records,
             (col_record.bgg_id for col_record in collection),
         )
+        removed = remove_missing_imports(sync_run)
+    else:
+        removed = 0
 
     # Any detail or canonical-persistence failure makes this input incomplete.
     sync_run.items_failed = detail_failed_count
-
-    # Reconcile only records whose detail and canonical upsert both succeeded.
-    # Missing imported copies can change state only for a fully authoritative
-    # collection: a successful fetch with no required item failures.
-    result = reconcile(
-        reconciled_collection,
-        complete=fetch_successful and not detail_failed_count,
-        sync_run=sync_run,
-    )
 
     # Compute status.
     if sync_run.items_failed > 0:
@@ -250,38 +321,38 @@ def full_reconcile(
         status=status,
         fetch_successful=fetch_successful,
         items_total=collection_count,
-        items_fetched=len(detail_records),
+        items_fetched=items_fetched,
         items_failed=sync_run.items_failed,
         error_messages=error_messages,
         diagnostics={
             "collection_count": collection_count,
-            "detail_records": len(detail_records),
+            "detail_records": items_fetched,
             "authoritative": fetch_successful and not detail_failed_count,
-            "imported_created": len(result.imported_created),
-            "imported_updated": len(result.imported_updated),
-            "removed": len(result.removed),
-            "restored": len(result.restored),
+            "imported_created": imported_created,
+            "imported_updated": imported_updated,
+            "removed": removed,
+            "restored": restored,
             "fetch_successful": fetch_successful,
             "error_count": len(error_messages),
             "elapsed_seconds": elapsed_seconds,
         },
         collection_count=collection_count,
-        imported_created=len(result.imported_created),
-        imported_updated=len(result.imported_updated),
-        removed=len(result.removed),
-        restored=len(result.restored),
+        imported_created=imported_created,
+        imported_updated=imported_updated,
+        removed=removed,
+        restored=restored,
     )
 
     return OrchestrationResult(
         bgg_sync_run=sync_run,
         collection_count=collection_count,
-        items_fetched=len(detail_records),
+        items_fetched=items_fetched,
         items_failed=sync_run.items_failed,
         error_messages=error_messages,
-        imported_created=len(result.imported_created),
-        imported_updated=len(result.imported_updated),
-        removed=len(result.removed),
-        restored=len(result.restored),
+        imported_created=imported_created,
+        imported_updated=imported_updated,
+        removed=removed,
+        restored=restored,
         fetch_successful=fetch_successful,
     )
 
@@ -289,6 +360,33 @@ def full_reconcile(
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+
+def _fetch_detail_batch(
+    repository: BGGRepositoryProtocol,
+    bgg_ids: list[int],
+) -> dict[
+    int,
+    BGGDetailRecord | BGGNotFoundError | BGGNetworkError | BGGAdapterError,
+]:
+    """Fetch one batch, falling back to individual calls to isolate failures."""
+
+    results: dict[
+        int,
+        BGGDetailRecord | BGGNotFoundError | BGGNetworkError | BGGAdapterError,
+    ]
+    try:
+        records = repository.get_details(bgg_ids)
+        results = {record.bgg_id: record for record in records}
+        return results
+    except (BGGNotFoundError, BGGNetworkError, BGGAdapterError):
+        results = {}
+        for bgg_id in bgg_ids:
+            try:
+                results[bgg_id] = repository.get_detail(bgg_id)
+            except (BGGNotFoundError, BGGNetworkError, BGGAdapterError) as exc:
+                results[bgg_id] = exc
+        return results
 
 
 def _update_sync_run_error(

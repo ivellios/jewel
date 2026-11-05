@@ -69,7 +69,7 @@ def test_collection_returns_raw_items_not_the_vendor_wrapper(vendor_client, toke
     vendor.collection.return_value = MagicMock(_items=(raw_item,))
     client = BGGClient(access_token=token)
 
-    assert client.collection("player") == (raw_item,)
+    assert list(client.collection("player")) == [raw_item]
     vendor.collection.assert_called_once_with(user_name="player", ids=None)
 
 

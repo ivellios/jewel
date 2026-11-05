@@ -54,10 +54,22 @@ def test_detail_normalizes_values_and_relations_without_io():
         image=None,
         description=None,
         bgg_url=None,
-        plays_count=0,
+        plays_count=None,
         expansions=(22, 22),
         designers_list=("Stefan Feld",),
     )
+
+
+@pytest.mark.parametrize(
+    ("flags", "expected_type"),
+    [
+        ({"expansion": True}, "boardgameexpansion"),
+        ({"accessory": True}, "boardgameaccessory"),
+        ({"type": "boardgame", "expansion": True}, "boardgame"),
+    ],
+)
+def test_detail_infers_item_type_from_vendor_flags(flags, expected_type):
+    assert normalize_detail({"id": "123", **flags}).item_type == expected_type
 
 
 def test_collection_normalizes_missing_values_and_quantity():
@@ -77,6 +89,29 @@ def test_collection_normalizes_missing_values_and_quantity():
     assert record.want_to_buy is False
     assert record.quantity == 2
     assert record.users_rated is None
+
+
+def test_collection_normalizes_selected_owned_version():
+    record = normalize_collection_item(
+        {
+            "id": "9209",
+            "name": "Ticket to Ride",
+            "version": {
+                "id": "123456",
+                "name": "Wsiąść do Pociągu",
+                "language": "Polish",
+                "year": "2019",
+                "publisher": "Rebel",
+            },
+        }
+    )
+
+    assert record.bgg_id == 9209
+    assert record.version_id == 123456
+    assert record.version_name == "Wsiąść do Pociągu"
+    assert record.version_language == "Polish"
+    assert record.version_year == 2019
+    assert record.version_publisher == "Rebel"
 
 
 def test_plays_are_immutable_jewel_records():

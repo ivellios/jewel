@@ -97,23 +97,29 @@ def reconcile(
     play_priority, condition, storage, purchase_date) survive
     reconciliation unchanged.
 
-    Only BoardGame rows whose ``metadata`` FK links to a
-    BGGMetadata record matching the collection ``bgg_id``
-    AND ``imported=True`` are subject to reconciliation.
+        Only explicitly owned collection items create or update imported
+        BoardGame rows. All collection statuses are still stored as
+        observations. Imported rows no longer explicitly owned are soft-removed
+        after a complete collection run.
     """
 
-    collected_ids: set[int] = set()
     bgg_to_record: dict[int, BGGCollectionRecord] = {}
 
     for record in collection:
-        collected_ids.add(record.bgg_id)
         bgg_to_record[record.bgg_id] = record
+    owned_ids = {bgg_id for bgg_id, record in bgg_to_record.items() if record.owned}
 
     with transaction.atomic():
-        imported_copies = _find_target_copies(collected_ids, complete=complete)
+        imported_copies = _find_target_copies(owned_ids, complete=complete)
         result = ReconciliationResult()
 
         for bgg_id, record in bgg_to_record.items():
+            # Keep observations for all BGG collection statuses, but only
+            # represent explicitly owned items as local collection copies.
+            _upsert_observation(record, sync_run=sync_run)
+            if not record.owned:
+                continue
+
             # Find the first matching copy (by bgg_id) among all imported copies.
             # Copies with metadata=None (failed detail fetch) are skipped here
             # — they can never match an existing copy because they have no
@@ -141,8 +147,6 @@ def reconcile(
                 if new_copy is not None:
                     result.imported_created.append(new_copy)
 
-            _upsert_observation(record, sync_run=sync_run)
-
         # Handle removal when complete.
         if complete:
             for copy in imported_copies:
@@ -150,11 +154,30 @@ def reconcile(
                     continue
                 bgg_id = copy.metadata.bgg_id
                 # Locally-owned (imported=False) copies are never selected.
-                if bgg_id not in collected_ids and not copy.removed:
+                if bgg_id not in owned_ids and not copy.removed:
                     _soft_remove(copy)
                     result.removed.append(copy)
 
     return result
+
+
+def remove_missing_imports(sync_run: BGGSyncRun) -> int:
+    """Soft-remove imports not observed by this complete sync run.
+
+    Collection observations are written as each item is processed, avoiding
+    the need to retain the full collection in memory for the final comparison.
+    Call only after every collection item was fetched and persisted.
+    """
+
+    with transaction.atomic():
+        return (
+            BoardGame.objects.filter(imported=True, removed=False)
+            .exclude(
+                metadata__collection_observation__sync_run=sync_run,
+                metadata__collection_observation__owned=True,
+            )
+            .update(removed=True, owned=False)
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -187,13 +210,31 @@ def _update_copy(copy: BoardGame, record: BGGCollectionRecord) -> bool:
     # played, play_priority, condition, storage, purchase_date) remain
     # untouched — they are preserved across reconciliation.
     copy.owned = record.owned
+    update_fields = ["owned"]
+    if record.version_id is not None:
+        if record.version_language and not copy.language:
+            copy.language = record.version_language
+            update_fields.append("language")
+        if record.version_name:
+            if not copy.edition_label:
+                copy.edition_label = record.version_name
+                update_fields.append("edition_label")
+            canonical_name = copy.metadata.name if copy.metadata is not None else None
+            # Older sync code incorrectly used the BGG version label as the
+            # game title. Repair that exact source-derived value while keeping
+            # unrelated user-edited local names intact.
+            if (
+                copy.name == record.version_name and copy.name != canonical_name
+            ) or not copy.name:
+                copy.name = canonical_name or record.name
+                update_fields.append("name")
     # Reappearing copies that were previously removed must be restored.
     if copy.removed:
         copy.removed = False
-        copy.save(update_fields=["owned", "removed"])
+        copy.save(update_fields=[*update_fields, "removed"])
         return True
 
-    copy.save(update_fields=["owned"])
+    copy.save(update_fields=update_fields)
     return False
 
 
@@ -212,17 +253,20 @@ def _create_copy(record: BGGCollectionRecord) -> BoardGame | None:
 
     return BoardGame.objects.create(
         metadata=metadata,
-        name=metadata.name,
+        name=metadata.name or record.name,
+        language=record.version_language,
+        edition_label=record.version_name,
         imported=True,
         owned=record.owned,
     )
 
 
 def _soft_remove(copy: BoardGame) -> None:
-    """Soft-remove an imported copy (set removed=True)."""
+    """Soft-remove an imported copy and clear its owned state."""
 
     copy.removed = True
-    copy.save(update_fields=["removed"])
+    copy.owned = False
+    copy.save(update_fields=["removed", "owned"])
 
 
 def _upsert_observation(

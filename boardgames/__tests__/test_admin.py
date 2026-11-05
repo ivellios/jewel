@@ -15,14 +15,20 @@ Verifies:
 from django.contrib.admin.sites import AdminSite
 from django.contrib.auth.models import User
 from django.test import RequestFactory, TestCase
+from django.urls import reverse
 
 from boardgames.admin import (
     BGGExpansionAdmin,
     BGGMetadataAdmin,
     BGGSyncRunAdmin,
     BoardGameAdmin,
+    HasBGGRankFilter,
+    PlayingTimeFilter,
+    ShowExpansionsFilter,
+    ShowRemovedFilter,
 )
 from boardgames.models import (
+    BGGCollectionObservation,
     BGGExpansion,
     BGGMetadata,
     BGGSyncRun,
@@ -57,11 +63,12 @@ class BoardGameFieldsetsTest(TestCase):
         self.admin = BoardGameAdmin(BoardGame, self.site)
 
     def test_fieldsets_exist_and_have_two_sections(self):
-        """Two fieldsets: local data (editable) and source/ownership (read-only)."""
-        self.assertEqual(len(self.admin.fieldsets), 2)
+        """Separate local data, source/ownership, and expansion sections."""
+        self.assertEqual(len(self.admin.fieldsets), 3)
         labels = [section[0] for section in self.admin.fieldsets]
         self.assertIn("Local physical-copy data (editable)", labels)
         self.assertIn("BGG source identity & ownership state (read-only)", labels)
+        self.assertIn("Expansions", labels)
 
     def test_editable_local_fields_all_present(self):
         """All BoardGame local fields appear in the first fieldset."""
@@ -106,12 +113,14 @@ class BoardGameFieldsetsTest(TestCase):
         """metadata, imported, owned, removed are in readonly_fields."""
         expected_readonly = (
             "metadata",
+            "metadata_link",
             "imported",
             "owned",
             "removed",
         )
         for field in expected_readonly:
             self.assertIn(field, self.admin.readonly_fields)
+        self.assertIn("metadata_link", self.admin.fieldsets[1][1]["fields"])
 
     def test_source_state_not_in_editable_fieldset(self):
         """Imported/owned/removed/metadata are NOT in the editable (first) fieldset."""
@@ -134,10 +143,11 @@ class BoardGameDisplayHelpersTest(TestCase):
 
     def test_metadata_link_for_imported(self):
         """metadata_link renders a BGG link when metadata exists."""
-        metadata = BGGMetadataFactory(bgg_id=12345)
+        metadata = BGGMetadataFactory(bgg_id=12345, name="Ticket to Ride")
         bg = BoardGameFactory(metadata=metadata, imported=True)
         result = self.admin.metadata_link(bg)
-        self.assertIn("BGG #12345", result)
+        self.assertIn("BGG Link", result)
+        self.assertNotIn("Ticket to Ride", result)
         self.assertIn('href="https://boardgamegeek.com/boardgame/', result)
 
     def test_metadata_link_for_local_only(self):
@@ -145,6 +155,89 @@ class BoardGameDisplayHelpersTest(TestCase):
         bg = BoardGameFactory(metadata=None, imported=False)
         result = self.admin.metadata_link(bg)
         self.assertIn("local-only", result)
+
+    def test_bgg_summary_values_are_available_on_local_copy(self):
+        metadata = BGGMetadataFactory(
+            bgg_id=12346,
+            rating_average=7.8,
+            boardgame_rank=42,
+        )
+        BGGCollectionObservation.objects.create(metadata=metadata, numplays=5)
+        game = BoardGameFactory(metadata=metadata)
+
+        self.assertEqual(self.admin.bgg_plays(game), 5)
+        self.assertEqual(self.admin.bgg_rating(game), 7.8)
+        self.assertEqual(self.admin.bgg_rank(game), 42)
+
+    def test_bgg_summary_values_are_blank_without_metadata(self):
+        game = BoardGameFactory(metadata=None, imported=False)
+
+        self.assertEqual(self.admin.bgg_plays(game), "—")
+        self.assertEqual(self.admin.bgg_rating(game), "—")
+        self.assertEqual(self.admin.bgg_rank(game), "—")
+
+    def test_expansion_links_list_all_children_and_link_to_copy_or_bgg(self):
+        parent = BGGMetadataFactory(bgg_id=12350, name="Base game")
+        local_expansion = BGGMetadataFactory(
+            bgg_id=12351,
+            name="Local deck",
+            rating_average=7.4,
+            boardgame_rank=12,
+            minplayers=1,
+            maxplayers=4,
+            playingtime=90,
+        )
+        remote_expansion = BGGMetadataFactory(bgg_id=12352, name="Remote deck")
+        BGGExpansionFactory(expansion=local_expansion, parent=parent)
+        BGGExpansionFactory(expansion=remote_expansion, parent=parent)
+        BGGCollectionObservation.objects.create(
+            metadata=local_expansion,
+            numplays=3,
+            owned=True,
+        )
+        local_copy = BoardGameFactory(metadata=local_expansion, name="My local deck")
+        game = BoardGameFactory(metadata=parent)
+
+        result = self.admin.expansion_links(game)
+
+        self.assertIn("My local deck", result)
+        self.assertIn(
+            reverse("admin:boardgames_boardgame_change", args=[local_copy.pk]),
+            result,
+        )
+        self.assertIn("Remote deck", result)
+        self.assertIn("https://boardgamegeek.com/boardgame/12352", result)
+        for detail in (
+            "BGG rating",
+            "Rank",
+            "Your plays",
+            "Players",
+            "Playing time",
+            "In collection",
+            "7.4",
+            "12",
+            "3",
+            "1–4",
+            "90 min",
+            "Yes",
+        ):
+            self.assertIn(detail, result)
+        self.assertIn("expansion_links", self.admin.readonly_fields)
+
+    def test_bgg_summary_values_are_listed_for_local_copies(self):
+        self.assertIn("bgg_plays", self.admin.list_display)
+        self.assertIn("bgg_rating", self.admin.list_display)
+        self.assertIn("bgg_rank", self.admin.list_display)
+        self.assertIn("bgg_plays", self.admin.readonly_fields)
+        self.assertIn("bgg_rating", self.admin.readonly_fields)
+        self.assertIn("bgg_rank", self.admin.readonly_fields)
+
+    def test_changelist_uses_rank_and_expansion_filters_not_metadata_filter(self):
+        self.assertIn(HasBGGRankFilter, self.admin.list_filter)
+        self.assertIn(PlayingTimeFilter, self.admin.list_filter)
+        self.assertIn(ShowExpansionsFilter, self.admin.list_filter)
+        self.assertIn(ShowRemovedFilter, self.admin.list_filter)
+        self.assertNotIn("metadata", self.admin.list_filter)
 
     def test_state_imported(self):
         """state shows 'Imported' for imported copies."""
@@ -233,11 +326,25 @@ class BGGMetadataAdminTest(TestCase):
         for field in BGGMetadata._meta.fields:
             if field.name == "id":
                 continue
+            if field.name in self.admin.exclude:
+                continue
             self.assertIn(field.name, self.admin.readonly_fields)
 
     def test_list_display_shows_key_fields(self):
-        expected = ["bgg_id", "name", "yearpublished"]
+        expected = ["bgg_id", "name", "yearpublished", "collection_plays"]
         self.assertEqual(self.admin.list_display, expected)
+
+    def test_collection_plays_reads_user_specific_observation(self):
+        metadata = BGGMetadataFactory(bgg_id=12001)
+        BGGCollectionObservation.objects.create(metadata=metadata, numplays=4)
+
+        self.assertEqual(self.admin.collection_plays(metadata), 4)
+
+    def test_collection_plays_is_unknown_without_observation(self):
+        metadata = BGGMetadataFactory(bgg_id=12002)
+
+        self.assertEqual(self.admin.collection_plays(metadata), "—")
+        self.assertIn("plays_count", self.admin.exclude)
 
     def test_search_fields_includes_bgg_id(self):
         self.assertIn("bgg_id", self.admin.search_fields)
@@ -272,13 +379,37 @@ class BGGExpansionAdminTest(TestCase):
 
     def test_all_fields_readonly(self):
         for field in BGGExpansion._meta.fields:
-            if field.name == "id":
+            if field.name in {"id", "expansion", "parent"}:
                 continue
             self.assertIn(field.name, self.admin.readonly_fields)
+        self.assertIn("expansion_link", self.admin.readonly_fields)
+        self.assertIn("parent_link", self.admin.readonly_fields)
 
     def test_list_display_shows_key_fields(self):
-        expected = ["expansion", "parent", "exp_type", "order"]
+        expected = ["expansion_link", "parent_link", "exp_type", "order"]
         self.assertEqual(self.admin.list_display, expected)
+
+    def test_expansion_links_to_active_local_copy_by_title(self):
+        expansion = BGGMetadataFactory(bgg_id=12011, name="Local expansion title")
+        base = BGGMetadataFactory(bgg_id=12012, name="Base game")
+        relation = BGGExpansionFactory(expansion=expansion, parent=base)
+        copy = BoardGameFactory(metadata=expansion, imported=True, name="My expansion")
+
+        result = self.admin.expansion_link(relation)
+
+        self.assertIn("My expansion", result)
+        self.assertIn(
+            reverse("admin:boardgames_boardgame_change", args=[copy.pk]), result
+        )
+
+    def test_expansion_falls_back_to_named_bgg_page_without_local_copy(self):
+        expansion = BGGMetadataFactory(bgg_id=12013, name="BGG title", bgg_url=None)
+        relation = BGGExpansionFactory(expansion=expansion)
+
+        result = self.admin.expansion_link(relation)
+
+        self.assertIn("BGG title", result)
+        self.assertIn("https://boardgamegeek.com/boardgame/12013", result)
 
 
 # ------------------------------------------------------------------ #
@@ -360,9 +491,147 @@ class LegacyBoardGameAdminTest(TestCase):
         self.assertEqual(self.admin.display_name(bg), "Test Game")
 
     def test_list_filter_fields(self):
-        expected = ["imported", "owned", "removed", "metadata", "language"]
+        expected = [
+            "imported",
+            "owned",
+            ShowRemovedFilter,
+            HasBGGRankFilter,
+            PlayingTimeFilter,
+            ShowExpansionsFilter,
+            "language",
+        ]
         self.assertEqual(self.admin.list_filter, expected)
 
     def test_search_fields(self):
         expected = ["name", "metadata__name"]
         self.assertEqual(self.admin.search_fields, expected)
+
+
+class BoardGameListFilterTest(TestCase):
+    def setUp(self):
+        self.request = _make_request()
+        self.model_admin = BoardGameAdmin(BoardGame, AdminSite())
+
+    def make_filter(self, filter_class, params=None):
+        return filter_class(
+            self.request,
+            {key: [value] for key, value in (params or {}).items()},
+            BoardGame,
+            self.model_admin,
+        )
+
+    def test_expansions_are_hidden_by_default_but_local_copies_remain(self):
+        base = BGGMetadataFactory(bgg_id=13001, item_type="boardgame")
+        expansion = BGGMetadataFactory(
+            bgg_id=13002,
+            item_type="boardgameexpansion",
+        )
+        unknown_type = BGGMetadataFactory(bgg_id=13003, item_type=None)
+        parent = BGGMetadataFactory(bgg_id=13007, item_type="boardgame")
+        linked_expansion = BGGMetadataFactory(bgg_id=13008, item_type=None)
+        BGGExpansionFactory(expansion=linked_expansion, parent=parent)
+        base_copy = BoardGameFactory(metadata=base)
+        expansion_copy = BoardGameFactory(metadata=expansion)
+        unknown_copy = BoardGameFactory(metadata=unknown_type)
+        linked_expansion_copy = BoardGameFactory(metadata=linked_expansion)
+        local_copy = BoardGameFactory(metadata=None, imported=False)
+
+        filtered = self.make_filter(ShowExpansionsFilter).queryset(
+            self.request, BoardGame.objects.all()
+        )
+
+        self.assertEqual(
+            set(filtered.values_list("pk", flat=True)),
+            {base_copy.pk, unknown_copy.pk, local_copy.pk},
+        )
+        self.assertNotIn(expansion_copy.pk, set(filtered.values_list("pk", flat=True)))
+        self.assertNotIn(
+            linked_expansion_copy.pk,
+            set(filtered.values_list("pk", flat=True)),
+        )
+
+    def test_expansion_filter_can_include_expansions(self):
+        expansion = BGGMetadataFactory(
+            bgg_id=13004,
+            item_type="boardgameexpansion",
+        )
+        game = BoardGameFactory(metadata=expansion)
+
+        filtered = self.make_filter(
+            ShowExpansionsFilter,
+            {"show_expansions": "yes"},
+        ).queryset(self.request, BoardGame.objects.all())
+
+        self.assertIn(game.pk, set(filtered.values_list("pk", flat=True)))
+
+    def test_removed_copies_are_hidden_by_default_and_can_be_shown(self):
+        active = BoardGameFactory(removed=False)
+        removed = BoardGameFactory(removed=True)
+
+        default_queryset = self.make_filter(ShowRemovedFilter).queryset(
+            self.request,
+            BoardGame.objects.all(),
+        )
+        show_removed_queryset = self.make_filter(
+            ShowRemovedFilter,
+            {"show_removed": "yes"},
+        ).queryset(self.request, BoardGame.objects.all())
+
+        self.assertEqual(
+            set(default_queryset.values_list("pk", flat=True)), {active.pk}
+        )
+        self.assertEqual(
+            set(show_removed_queryset.values_list("pk", flat=True)), {removed.pk}
+        )
+
+    def test_playing_time_filter_selects_ranges_and_unknown_values(self):
+        games = {}
+        for label, duration in (
+            ("short", 30),
+            ("medium", 45),
+            ("long", 90),
+            ("very_long", 180),
+            ("unknown", None),
+        ):
+            metadata = BGGMetadataFactory(
+                playingtime=duration,
+                bgg_id=13100 + len(games),
+            )
+            games[label] = BoardGameFactory(metadata=metadata)
+
+        expected = {
+            "up_to_30": {games["short"].pk},
+            "31_to_60": {games["medium"].pk},
+            "61_to_120": {games["long"].pk},
+            "over_120": {games["very_long"].pk},
+            "unknown": {games["unknown"].pk},
+        }
+        for selected, expected_pks in expected.items():
+            with self.subTest(selected=selected):
+                filtered = self.make_filter(
+                    PlayingTimeFilter,
+                    {"bgg_playing_time": selected},
+                ).queryset(self.request, BoardGame.objects.all())
+                self.assertEqual(
+                    set(filtered.values_list("pk", flat=True)), expected_pks
+                )
+
+    def test_rank_filter_distinguishes_present_and_missing_rank(self):
+        ranked = BGGMetadataFactory(bgg_id=13005, boardgame_rank=17)
+        unranked = BGGMetadataFactory(bgg_id=13006, boardgame_rank=None)
+        ranked_copy = BoardGameFactory(metadata=ranked)
+        unranked_copy = BoardGameFactory(metadata=unranked)
+
+        with_rank = self.make_filter(
+            HasBGGRankFilter,
+            {"has_bgg_rank": "yes"},
+        ).queryset(self.request, BoardGame.objects.all())
+        without_rank = self.make_filter(
+            HasBGGRankFilter,
+            {"has_bgg_rank": "no"},
+        ).queryset(self.request, BoardGame.objects.all())
+
+        self.assertEqual(set(with_rank.values_list("pk", flat=True)), {ranked_copy.pk})
+        self.assertEqual(
+            set(without_rank.values_list("pk", flat=True)), {unranked_copy.pk}
+        )

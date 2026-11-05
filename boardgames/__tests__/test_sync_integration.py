@@ -26,6 +26,7 @@ from django.test import TestCase
 from boardgames.bgg import BGGCollectionRecord
 from boardgames.bgg.errors import BGGNetworkError, BGGNotFoundError
 from boardgames.models import (
+    BGGCollectionObservation,
     BGGExpansion,
     BGGMetadata,
     BGGSyncRun,
@@ -179,6 +180,9 @@ def _make_adapter(
         )
 
     mock.get_detail.side_effect = _get_detail_side_effect
+    mock.get_details.side_effect = lambda bgg_ids: tuple(
+        _get_detail_side_effect(bgg_id) for bgg_id in bgg_ids
+    )
     return mock
 
 
@@ -280,7 +284,7 @@ class QuantityNoDuplicationTest(TestCase):
 
         collection = (
             collection_record(bgg_id=910040, owned=True),
-            collection_record(bgg_id=910040, owned=False),
+            collection_record(bgg_id=910040, owned=True),
         )
         adapter = _make_adapter(collection)
 
@@ -291,8 +295,8 @@ class QuantityNoDuplicationTest(TestCase):
             1,
         )
 
-    def test_last_owned_wins(self):
-        """When multiple entries share bgg_id, the last one wins."""
+    def test_last_non_owned_entry_does_not_create_a_local_copy(self):
+        """The last collection observation determines ownership membership."""
 
         collection = (
             collection_record(bgg_id=910041, owned=True),
@@ -303,7 +307,10 @@ class QuantityNoDuplicationTest(TestCase):
         _run_with_upsert_patch(adapter, "importer")
 
         game = BoardGame.objects.get(metadata__bgg_id=910041)
+        self.assertTrue(game.removed)
         self.assertFalse(game.owned)
+        observation = BGGCollectionObservation.objects.get(metadata__bgg_id=910041)
+        self.assertFalse(observation.owned)
 
 
 # -----------------------------------------------------------------------

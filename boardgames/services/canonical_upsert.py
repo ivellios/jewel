@@ -28,7 +28,7 @@ from typing import TYPE_CHECKING
 from django.db import transaction
 from django.db.models import Q
 
-from boardgames.bgg import BGGDetailRecord
+from boardgames.bgg import BGGDetailRecord, BGGExpansionRelations
 from boardgames.models import BGGExpansion, BGGMetadata
 
 if TYPE_CHECKING:
@@ -141,7 +141,7 @@ def upsert_detail(record: BGGDetailRecord) -> UpsertResult:
 
 
 def synchronize_expansion_links(
-    records: Iterable[BGGDetailRecord],
+    records: Iterable[BGGExpansionRelations],
     authoritative_ids: Iterable[int],
 ) -> list[BGGExpansion]:
     """Synchronize relationships from a complete authoritative collection.

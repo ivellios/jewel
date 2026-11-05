@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Iterator, Sequence
 from dataclasses import dataclass
 from datetime import date
-from typing import Protocol
+from typing import Protocol, overload
 
 from .adapter import (
     BGGBatchRecord,
@@ -32,9 +32,11 @@ class BGGExpansionRecord:
 class BGGRepositoryProtocol(Protocol):
     """BGG data required by synchronization services."""
 
-    def get_collection(self, user_name: str) -> tuple[BGGCollectionRecord, ...]: ...
+    def get_collection(self, user_name: str) -> Sequence[BGGCollectionRecord]: ...
 
     def get_detail(self, bgg_id: int) -> BGGDetailRecord: ...
+
+    def get_details(self, bgg_ids: Iterable[int]) -> tuple[BGGDetailRecord, ...]: ...
 
 
 class BGGRepository:
@@ -55,14 +57,28 @@ class BGGRepository:
     def get_detail(self, bgg_id: int) -> BGGDetailRecord:
         return normalize_detail(self._client.game(bgg_id))
 
+    def get_details(self, bgg_ids: Iterable[int]) -> tuple[BGGDetailRecord, ...]:
+        ids = tuple(bgg_ids)
+        if not ids:
+            return ()
+        if len(ids) > 20:
+            raise ValueError("BGG detail batches cannot exceed 20 game IDs")
+        records = tuple(
+            normalize_detail(item) for item in _items(self._client.game_list(ids))
+        )
+        if {record.bgg_id for record in records} != set(ids):
+            raise BGGAdapterError("BGG detail batch returned an unexpected set of IDs")
+        return records
+
     def get_collection(
         self,
         user_name: str,
         ids: Iterable[int] | None = None,
         **filters: object,
-    ) -> tuple[BGGCollectionRecord, ...]:
+    ) -> Sequence[BGGCollectionRecord]:
+        filters.setdefault("version", True)
         raw_items = self._client.collection(user_name, ids=ids, **filters)
-        return tuple(normalize_collection_item(item) for item in _items(raw_items))
+        return _NormalizedCollection(_items(raw_items))
 
     def get_plays(
         self,
@@ -119,7 +135,37 @@ class BGGRepository:
         )
 
 
-def _items(raw_items: object) -> tuple[object, ...]:
+def _items(raw_items: object) -> Sequence[object]:
     if not isinstance(raw_items, Iterable) or isinstance(raw_items, str | bytes | dict):
         raise BGGAdapterError("Unexpected BGG list response")
+    if isinstance(raw_items, Sequence):
+        return raw_items
     return tuple(raw_items)
+
+
+class _NormalizedCollection(Sequence[BGGCollectionRecord]):
+    """Lazily normalize vendor items without retaining a second full list."""
+
+    def __init__(self, raw_items: Sequence[object]) -> None:
+        self._raw_items = raw_items
+
+    def __len__(self) -> int:
+        return len(self._raw_items)
+
+    def __iter__(self) -> Iterator[BGGCollectionRecord]:
+        return (normalize_collection_item(item) for item in self._raw_items)
+
+    @overload
+    def __getitem__(self, index: int) -> BGGCollectionRecord: ...
+
+    @overload
+    def __getitem__(self, index: slice) -> tuple[BGGCollectionRecord, ...]: ...
+
+    def __getitem__(
+        self, index: int | slice
+    ) -> BGGCollectionRecord | tuple[BGGCollectionRecord, ...]:
+        if isinstance(index, slice):
+            return tuple(
+                normalize_collection_item(item) for item in self._raw_items[index]
+            )
+        return normalize_collection_item(self._raw_items[index])

@@ -11,14 +11,18 @@ Tests:
 * Incomplete input cannot authorize removals.
 """
 
+from dataclasses import replace
+
 from django.db import IntegrityError
 from django.test import TestCase
 
 from boardgames.models import BGGCollectionObservation, BGGMetadata, BoardGame
 from boardgames.services import reconcile
+from boardgames.services.reconciliation import remove_missing_imports
 
 from ..__tests__.factories import (
     BGGMetadataFactory,
+    BGGSyncRunFactory,
     BoardGameFactory,
     collection_record,
 )
@@ -36,23 +40,26 @@ def _metadata_for_id(bgg_id: int) -> BGGMetadata:
 class DistinctIdCreatesDistinctCopiesTest(TestCase):
     """Verify distinct BGG collection IDs produce distinct imported copies."""
 
-    def test_distinct_bggs_create_distinct_imported_rows(self):
-        """Two different BGG IDs → two distinct imported BoardGame rows."""
+    def test_only_owned_collection_items_create_imported_rows(self):
+        """Want-to-play-only entries are observed but not imported as copies."""
 
         _metadata_for_id(900001)
         _metadata_for_id(900002)
 
         collection = [
             collection_record(bgg_id=900001, owned=True),
-            collection_record(bgg_id=900002, owned=False),
+            collection_record(bgg_id=900002, owned=False, want_to_play=True),
         ]
 
         result = reconcile(collection)
 
-        self.assertEqual(len(result.imported_created), 2)
-        self.assertEqual(BoardGame.objects.filter(imported=True).count(), 2)
+        self.assertEqual(len(result.imported_created), 1)
+        self.assertEqual(BoardGame.objects.filter(imported=True).count(), 1)
         bgg_ids = {c.metadata.bgg_id for c in result.imported_created}
-        self.assertEqual(bgg_ids, {900001, 900002})
+        self.assertEqual(bgg_ids, {900001})
+        observation = BGGCollectionObservation.objects.get(metadata__bgg_id=900002)
+        self.assertFalse(observation.owned)
+        self.assertTrue(observation.want_to_play)
 
     def test_same_id_quantity_creates_no_duplicates(self):
         """Collection quantity and repeat runs do not duplicate a source copy."""
@@ -89,6 +96,66 @@ class DistinctIdCreatesDistinctCopiesTest(TestCase):
 
         copy.refresh_from_db()
         self.assertEqual(copy.name, "Original BGG Name")
+
+    def test_new_imported_copy_uses_selected_bgg_version(self):
+        BGGMetadata.objects.create(bgg_id=900006, name="Ticket to Ride")
+        record = replace(
+            collection_record(bgg_id=900006),
+            version_id=123456,
+            version_name="Wsiąść do Pociągu",
+            version_language="Polish",
+        )
+
+        result = reconcile([record])
+
+        copy = result.imported_created[0]
+        self.assertEqual(copy.name, "Ticket to Ride")
+        self.assertEqual(copy.language, "Polish")
+        self.assertEqual(copy.edition_label, "Wsiąść do Pociągu")
+
+    def test_sync_repairs_version_label_misused_as_game_title(self):
+        metadata = BGGMetadataFactory(bgg_id=900008, name="Ticket to Ride")
+        copy = BoardGameFactory(
+            metadata=metadata,
+            imported=True,
+            name="English edition 2021",
+            edition_label=None,
+        )
+        record = replace(
+            collection_record(bgg_id=900008),
+            version_id=123458,
+            version_name="English edition 2021",
+            version_language="English",
+        )
+
+        reconcile([record])
+        copy.refresh_from_db()
+
+        self.assertEqual(copy.name, "Ticket to Ride")
+        self.assertEqual(copy.edition_label, "English edition 2021")
+
+    def test_sync_backfills_version_language_without_overwriting_local_name(self):
+        metadata = BGGMetadataFactory(bgg_id=900007, name="Ticket to Ride")
+        copy = BoardGameFactory(
+            metadata=metadata,
+            imported=True,
+            name="My local title",
+            language=None,
+            edition_label=None,
+        )
+        record = replace(
+            collection_record(bgg_id=900007),
+            version_id=123457,
+            version_name="Wsiąść do Pociągu",
+            version_language="Polish",
+        )
+
+        reconcile([record])
+        copy.refresh_from_db()
+
+        self.assertEqual(copy.name, "My local title")
+        self.assertEqual(copy.language, "Polish")
+        self.assertEqual(copy.edition_label, "Wsiąść do Pociągu")
 
     def test_missing_canonical_metadata_creates_no_imported_copy(self):
         """Failed details cannot leave anonymous imported rows behind."""
@@ -448,3 +515,37 @@ class NoNetworkWritesTest(TestCase):
         # Local-only game must still exist and not be removed.
         self.assertEqual(BoardGame.objects.filter(pk=local_game.pk).count(), 1)
         self.assertFalse(BoardGame.objects.get(pk=local_game.pk).removed)
+
+
+class NonOwnedCollectionItemsTest(TestCase):
+    def test_non_owned_record_does_not_create_copy_and_is_still_observed(self):
+        metadata = BGGMetadataFactory(bgg_id=900100, name="Want to play")
+        run = BGGSyncRunFactory()
+
+        result = reconcile(
+            [collection_record(bgg_id=900100, owned=False, want_to_play=True)],
+            sync_run=run,
+        )
+
+        self.assertEqual(result.imported_created, [])
+        self.assertFalse(BoardGame.objects.filter(metadata=metadata).exists())
+        observation = BGGCollectionObservation.objects.get(metadata=metadata)
+        self.assertEqual(observation.sync_run, run)
+        self.assertFalse(observation.owned)
+        self.assertTrue(observation.want_to_play)
+
+    def test_non_owned_observation_soft_removes_previous_import(self):
+        metadata = BGGMetadataFactory(bgg_id=900101, name="No longer owned")
+        imported_copy = BoardGameFactory(metadata=metadata, imported=True, owned=True)
+        run = BGGSyncRunFactory()
+        BGGCollectionObservation.objects.create(
+            metadata=metadata,
+            sync_run=run,
+            owned=False,
+        )
+
+        removed_count = remove_missing_imports(run)
+
+        imported_copy.refresh_from_db()
+        self.assertEqual(removed_count, 1)
+        self.assertTrue(imported_copy.removed)

@@ -131,6 +131,9 @@ def _make_repository(
         )
 
     mock.get_detail.side_effect = _get_detail_side_effect
+    mock.get_details.side_effect = lambda bgg_ids: tuple(
+        _get_detail_side_effect(bgg_id) for bgg_id in bgg_ids
+    )
     return mock
 
 
