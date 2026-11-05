@@ -166,6 +166,6 @@ REST_FRAMEWORK = {
 # BGG access token (required when using BGG client; missing token raises
 # DeterministicError at the client boundary, not at settings import time).
 BGG_ACCESS_TOKEN = os.environ.get("BGG_ACCESS_TOKEN")
-BGG_API_URL = os.environ.get("BGG_API_URL", "https://api.boardgamegeek.com")
+BGG_API_URL = os.environ.get("BGG_API_URL", "https://boardgamegeek.com/xmlapi2")
 BGG_REQUEST_TIMEOUT = int(os.environ.get("BGG_REQUEST_TIMEOUT", "30"))
 BGG_USER_NAME = os.environ.get("BGG_USER_NAME")

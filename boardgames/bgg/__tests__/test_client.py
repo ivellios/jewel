@@ -35,6 +35,7 @@ def test_client_uses_default_endpoint_and_timeout(vendor_client, token):
 
     factory.assert_called_once_with(access_token=token, timeout=12.5)
     assert transport._timeout == 12.5
+    assert DEFAULT_BGG_API_URL == "https://boardgamegeek.com/xmlapi2"
     assert client._thing_api_url == f"{DEFAULT_BGG_API_URL}/thing"
 
 

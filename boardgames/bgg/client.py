@@ -26,7 +26,7 @@ from .errors import (
     BGGNotFoundError,
 )
 
-DEFAULT_BGG_API_URL = "https://api.boardgamegeek.com"
+DEFAULT_BGG_API_URL = "https://boardgamegeek.com/xmlapi2"
 
 
 class BGGClient:

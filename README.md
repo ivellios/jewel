@@ -153,7 +153,7 @@ Required settings (added to `settings.py` and `.env` / `.env.example`):
 |---|---|---|
 | `BGG_ACCESS_TOKEN` | BGG API access token (required) | — |
 | `BGG_USER_NAME` | BGG user name whose collection to sync (required) | — |
-| `BGG_API_URL` | BGG API base URL | `https://api.boardgamegeek.com` |
+| `BGG_API_URL` | BGG API base URL | `https://boardgamegeek.com/xmlapi2` |
 | `BGG_REQUEST_TIMEOUT` | Request timeout in seconds | `30` |
 
 ### Exit codes

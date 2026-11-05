@@ -15,7 +15,7 @@ Settings
 The command reads the following from ``django.conf.settings``:
 
 * ``BGG_ACCESS_TOKEN`` — BGG API access token (required).
-* ``BGG_API_URL`` — BGG API base URL (default: ``https://api.boardgamegeek.com``).
+* ``BGG_API_URL`` — BGG API base URL (default: ``https://boardgamegeek.com/xmlapi2``).
 * ``BGG_REQUEST_TIMEOUT`` — Request timeout in seconds (default: ``30``).
 * ``BGG_USER_NAME`` — BGG user name whose collection to sync (required).
 
@@ -112,7 +112,7 @@ class Command(BaseCommand):
         """Execute the full reconciliation pipeline."""
         # Read settings (fail early with clear messages).
         access_token: str | None = getattr(settings, "BGG_ACCESS_TOKEN", None)
-        api_url = getattr(settings, "BGG_API_URL", "https://api.boardgamegeek.com")
+        api_url = getattr(settings, "BGG_API_URL", "https://boardgamegeek.com/xmlapi2")
         request_timeout = getattr(settings, "BGG_REQUEST_TIMEOUT", 30)
         user_name: str | None = getattr(settings, "BGG_USER_NAME", None)
 
