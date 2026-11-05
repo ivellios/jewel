@@ -32,6 +32,7 @@ from __future__ import annotations
 import json
 import logging
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
@@ -90,6 +91,7 @@ class OrchestrationResult:
 def full_reconcile(
     repository: BGGRepositoryProtocol,
     user_name: str,
+    progress_callback: Callable[[int, int], None] | None = None,
 ) -> OrchestrationResult:
     """Run the full reconciliation pipeline and persist diagnostics.
 
@@ -99,6 +101,9 @@ def full_reconcile(
         A configured :class:`boardgames.bgg.BGGRepositoryProtocol` instance.
     user_name :
         The BGG user name whose collection to fetch.
+    progress_callback :
+        Optional callback receiving completed and total item counts while
+        fetching details. Called once with ``(0, total)`` before processing.
 
     Returns
     -------
@@ -173,6 +178,9 @@ def full_reconcile(
 
     # Fetch succeeded.
     collection_count = len(collection)
+    if progress_callback is not None:
+        progress_callback(0, collection_count)
+
     detail_records: list[tuple[BGGCollectionRecord, BGGDetailRecord]] = []
     error_messages: list[str] = []
     detail_failed_count = 0
@@ -188,6 +196,9 @@ def full_reconcile(
                 f"{type(exc).__name__}: {exc}"
             )
             detail_failed_count += 1
+        finally:
+            if progress_callback is not None:
+                progress_callback(idx, collection_count)
 
         # Bounded error storage.
         if len(error_messages) > MAX_ERROR_MESSAGES:

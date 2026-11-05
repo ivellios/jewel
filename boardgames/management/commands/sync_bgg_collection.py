@@ -83,6 +83,8 @@ Example output (failed):
 from django.conf import settings
 from django.core.management.base import BaseCommand
 
+from tqdm import tqdm
+
 from boardgames.bgg.repository import BGGRepository
 from boardgames.services import full_reconcile
 
@@ -134,7 +136,19 @@ class Command(BaseCommand):
             timeout=request_timeout,
         )
 
-        result = full_reconcile(repository, user_name)
+        with tqdm(desc="Fetching BGG game details", unit="game") as progress:
+
+            def report_progress(completed: int, total: int) -> None:
+                if progress.total != total:
+                    progress.total = total
+                    progress.refresh()
+                progress.update(completed - progress.n)
+
+            result = full_reconcile(
+                repository,
+                user_name,
+                progress_callback=report_progress,
+            )
 
         # Print diagnostics.
         self._print_result(result)

@@ -248,6 +248,25 @@ def _run_with_upsert_patch(
 class FullSuccessTest(TestCase):
     """Verify successful full collection behaviour."""
 
+    def test_progress_callback_reports_collection_and_each_item(self):
+        collection = (
+            collection_record(bgg_id=900150),
+            collection_record(bgg_id=900151),
+        )
+        adapter = _make_adapter(collection)
+        progress: list[tuple[int, int]] = []
+
+        with _patch_upsert_detail():
+            full_reconcile(
+                adapter,
+                "testuser",
+                progress_callback=lambda completed, total: progress.append(
+                    (completed, total)
+                ),
+            )
+
+        self.assertEqual(progress, [(0, 2), (1, 2), (2, 2)])
+
     def test_full_success_status_and_counters(self):
         """A fully successful run sets status=full, fetch_successful=True."""
 
