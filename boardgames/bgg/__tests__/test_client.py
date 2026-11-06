@@ -1,6 +1,7 @@
 """Focused tests for the raw BGG transport boundary."""
 
 from unittest.mock import MagicMock
+from xml.etree import ElementTree
 
 import pytest
 from boardgamegeek import BGGApiError, BGGItemNotFoundError
@@ -61,6 +62,41 @@ def test_client_returns_raw_vendor_response(vendor_client, token):
 
     assert client.game(42) is raw_response
     vendor.game.assert_called_once_with(game_id=42)
+
+
+def test_game_list_retains_localized_version_canonical_name(
+    vendor_client, token, monkeypatch
+):
+    vendor, _ = vendor_client
+    vendor.requests_session = object()
+    vendor._retries = 3
+    vendor._retry_delay = 0
+    vendor._get_auth_headers.return_value = {"Authorization": "Bearer test-token"}
+    xml = ElementTree.fromstring(  # noqa: S314 - trusted inline test fixture.
+        '<items><item id="378758" type="boardgame"><versions>'
+        '<item id="667143"><canonicalname value="Podziemne Imperium" />'
+        '<link type="language" value="Polish" /></item>'
+        "</versions></item></items>"
+    )
+    monkeypatch.setattr(
+        "boardgames.bgg.client.request_and_parse_xml", lambda *a, **k: xml
+    )
+    game = MagicMock()
+    game._data = {"id": 378758, "name": "Imperial Miners"}
+    monkeypatch.setattr(
+        "boardgames.bgg.client.create_game_from_xml", lambda *_a, **_k: game
+    )
+
+    result = BGGClient(access_token=token).game_list([378758])
+
+    assert result[0]["name"] == "Imperial Miners"
+    assert result[0]["localized_versions"] == [
+        {
+            "id": 667143,
+            "language": "Polish",
+            "canonical_name": "Podziemne Imperium",
+        }
+    ]
 
 
 def test_collection_returns_raw_items_not_the_vendor_wrapper(vendor_client, token):

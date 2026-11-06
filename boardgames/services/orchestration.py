@@ -34,7 +34,7 @@ import logging
 import time
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 
 from django.db import DatabaseError, transaction
@@ -259,6 +259,17 @@ def full_reconcile(
                 else:
                     items_fetched += 1
                     try:
+                        localized_title = next(
+                            (
+                                version.title
+                                for version in detail_result.localized_versions
+                                if version.version_id == col_record.version_id
+                            ),
+                            None,
+                        )
+                        col_record = replace(
+                            col_record, localized_title=localized_title
+                        )
                         upsert_detail(detail_result)
                         expansion_records.append(
                             BGGExpansionRelations(

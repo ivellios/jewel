@@ -97,21 +97,44 @@ class DistinctIdCreatesDistinctCopiesTest(TestCase):
         copy.refresh_from_db()
         self.assertEqual(copy.name, "Original BGG Name")
 
-    def test_new_imported_copy_uses_selected_bgg_version(self):
+    def test_new_polish_import_keeps_edition_label_out_of_game_title(self):
         BGGMetadata.objects.create(bgg_id=900006, name="Ticket to Ride")
         record = replace(
             collection_record(bgg_id=900006),
             version_id=123456,
-            version_name="Wsiąść do Pociągu",
+            version_name="Portal Games Polish edition",
             version_language="Polish",
+            localized_title="Podziemne Imperium",
         )
 
         result = reconcile([record])
 
         copy = result.imported_created[0]
-        self.assertEqual(copy.name, "Ticket to Ride")
+        self.assertEqual(copy.name, "Podziemne Imperium")
         self.assertEqual(copy.language, "Polish")
-        self.assertEqual(copy.edition_label, "Wsiąść do Pociągu")
+        self.assertEqual(copy.edition_label, "Portal Games Polish edition")
+
+    def test_existing_canonical_title_is_not_replaced_by_polish_edition_label(self):
+        metadata = BGGMetadataFactory(bgg_id=900009, name="Ticket to Ride")
+        copy = BoardGameFactory(
+            metadata=metadata,
+            imported=True,
+            name="Ticket to Ride",
+            language="Polish",
+            edition_label=None,
+        )
+        record = replace(
+            collection_record(bgg_id=900009),
+            version_id=123459,
+            version_name="Portal Games Polish edition",
+            version_language="Polish",
+        )
+
+        reconcile([record])
+        copy.refresh_from_db()
+
+        self.assertEqual(copy.name, "Ticket to Ride")
+        self.assertEqual(copy.edition_label, "Portal Games Polish edition")
 
     def test_sync_repairs_version_label_misused_as_game_title(self):
         metadata = BGGMetadataFactory(bgg_id=900008, name="Ticket to Ride")

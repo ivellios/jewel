@@ -16,6 +16,7 @@ Tests:
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 from unittest.mock import MagicMock, patch
 
 from django.test import TestCase
@@ -172,6 +173,7 @@ def _make_adapter(
                     mechanics_list=rec.get("mechanics_list", ()),
                     categories_list=rec.get("categories_list", ()),
                     families=rec.get("families", ()),
+                    localized_versions=rec.get("localized_versions", ()),
                 )
         # Default success for unlisted IDs (no detail override).
         return BGGDetailRecord(
@@ -274,6 +276,39 @@ class FullSuccessTest(TestCase):
                 "testuser",
                 progress_callback=check_first_item_persisted,
             )
+
+    def test_selected_version_localized_title_is_used_for_imported_copy(self):
+        from boardgames.bgg import BGGLocalizedVersionRecord
+
+        collection = (
+            replace(
+                collection_record(bgg_id=900142),
+                version_id=667143,
+                version_name="Polish edition",
+                version_language="Polish",
+            ),
+        )
+        adapter = _make_adapter(
+            collection,
+            detail_records=(
+                {
+                    "bgg_id": 900142,
+                    "name": "Imperial Miners",
+                    "localized_versions": (
+                        BGGLocalizedVersionRecord(
+                            667143, "Polish", "Podziemne Imperium"
+                        ),
+                        BGGLocalizedVersionRecord(123, "English", "English title"),
+                    ),
+                },
+            ),
+        )
+
+        _run_with_upsert_patch(adapter, "testuser")
+
+        imported = BoardGame.objects.get(metadata__bgg_id=900142, imported=True)
+        self.assertEqual(imported.name, "Podziemne Imperium")
+        self.assertEqual(imported.edition_label, "Polish edition")
 
     def test_detail_requests_are_batched_in_groups_of_twenty(self):
         collection = tuple(

@@ -15,6 +15,15 @@ RawResponse = Mapping[str, object] | object
 
 
 @dataclass(frozen=True)
+class BGGLocalizedVersionRecord:
+    """Localized title attached to one BGG edition/version."""
+
+    version_id: int
+    language: str | None
+    title: str | None
+
+
+@dataclass(frozen=True)
 class BGGDetailRecord:
     """Canonical metadata returned by the BGG thing endpoint."""
 
@@ -53,6 +62,7 @@ class BGGDetailRecord:
     mechanics_list: tuple[str, ...] = ()
     categories_list: tuple[str, ...] = ()
     families: tuple[str, ...] = ()
+    localized_versions: tuple[BGGLocalizedVersionRecord, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -104,6 +114,7 @@ class BGGCollectionRecord:
     version_language: str | None = None
     version_year: int | None = None
     version_publisher: str | None = None
+    localized_title: str | None = None
 
 
 @dataclass(frozen=True)
@@ -185,6 +196,7 @@ def normalize_detail(raw: RawResponse) -> BGGDetailRecord:
         mechanics_list=mechanics,
         categories_list=categories,
         families=_strings(_value(raw, "families")),
+        localized_versions=_localized_versions(_value(raw, "localized_versions")),
     )
 
 
@@ -271,6 +283,9 @@ def _items(value: object | None) -> tuple[object, ...]:
 def _value(raw: RawResponse, field: str, *aliases: str) -> object | None:
     for name in (field, *aliases):
         value = raw.get(name) if isinstance(raw, Mapping) else getattr(raw, name, None)
+        if value is None and not isinstance(raw, Mapping):
+            data = getattr(raw, "_data", None)
+            value = data.get(name) if isinstance(data, Mapping) else None
         if value is not None:
             return value
     return None
@@ -354,6 +369,22 @@ def _related_ids(value: object | None) -> tuple[int, ...]:
         if (related_id := _integer(_value(item, "id", "bgg_id"))) is not None
         and related_id > 0
     )
+
+
+def _localized_versions(value: object | None) -> tuple[BGGLocalizedVersionRecord, ...]:
+    records = []
+    for item in _items(value):
+        version_id = _integer(_value(item, "id", "version_id"))
+        if version_id is None or version_id < 1:
+            continue
+        records.append(
+            BGGLocalizedVersionRecord(
+                version_id=version_id,
+                language=_text(_value(item, "language")),
+                title=_text(_value(item, "canonical_name", "canonicalname", "title")),
+            )
+        )
+    return tuple(records)
 
 
 def _normalize_play_session(raw: RawResponse) -> BGGPlaySessionRecord:

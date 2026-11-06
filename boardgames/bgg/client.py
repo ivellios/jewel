@@ -18,6 +18,8 @@ from boardgamegeek import (
     BGGItemNotFoundError,
 )
 from boardgamegeek import BGGClient as BoardGameGeekClient
+from boardgamegeek.loaders.game import create_game_from_xml
+from boardgamegeek.utils import request_and_parse_xml
 
 from .errors import (
     BGGAdapterError,
@@ -104,9 +106,45 @@ class BGGClient:
         )
 
     def game_list(self, game_ids: Iterable[int]) -> Any:
-        """Return raw responses for several games."""
+        """Return raw responses including per-edition localized titles."""
         ids = list(game_ids)
-        return self._call(ids, self._client.game_list, ids)
+        if not ids:
+            return []
+        try:
+            root = request_and_parse_xml(
+                self._client.requests_session,
+                self._client._thing_api_url,
+                params={"id": ",".join(map(str, ids)), "versions": 1, "stats": 1},
+                timeout=self._timeout,
+                retries=self._client._retries,
+                retry_delay=self._client._retry_delay,
+                headers=self._client._get_auth_headers(),
+            )
+            results = []
+            for element in root.findall("item"):
+                game_id = int(element.attrib["id"])
+                game = create_game_from_xml(element, game_id=game_id)
+                localized_versions = []
+                for version in element.findall("versions/item"):
+                    language_link = version.find("link[@type='language']")
+                    localized_name = version.find("canonicalname")
+                    localized_versions.append(
+                        {
+                            "id": int(version.attrib["id"]),
+                            "language": language_link.attrib.get("value")
+                            if language_link is not None
+                            else None,
+                            "canonical_name": localized_name.attrib.get("value")
+                            if localized_name is not None
+                            else None,
+                        }
+                    )
+                results.append({**game._data, "localized_versions": localized_versions})
+            if {item["id"] for item in results} != set(ids):
+                raise BGGApiError("BGG detail batch returned an unexpected set of IDs")
+            return results
+        except BGGError as exc:
+            self._raise_mapped_error(exc, ids)
 
     def search(
         self,

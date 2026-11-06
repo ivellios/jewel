@@ -220,13 +220,12 @@ def _update_copy(copy: BoardGame, record: BGGCollectionRecord) -> bool:
                 copy.edition_label = record.version_name
                 update_fields.append("edition_label")
             canonical_name = copy.metadata.name if copy.metadata is not None else None
+            preferred_name = record.localized_title or canonical_name or record.name
             # Older sync code incorrectly used the BGG version label as the
             # game title. Repair that exact source-derived value while keeping
             # unrelated user-edited local names intact.
-            if (
-                copy.name == record.version_name and copy.name != canonical_name
-            ) or not copy.name:
-                copy.name = canonical_name or record.name
+            if copy.name in {record.version_name, canonical_name} or not copy.name:
+                copy.name = preferred_name
                 update_fields.append("name")
     # Reappearing copies that were previously removed must be restored.
     if copy.removed:
@@ -253,7 +252,7 @@ def _create_copy(record: BGGCollectionRecord) -> BoardGame | None:
 
     return BoardGame.objects.create(
         metadata=metadata,
-        name=metadata.name or record.name,
+        name=record.localized_title or metadata.name or record.name,
         language=record.version_language,
         edition_label=record.version_name,
         imported=True,

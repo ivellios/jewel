@@ -7,6 +7,7 @@ import pytest
 from boardgames.bgg import (
     BGGCollectionRecord,
     BGGDetailRecord,
+    BGGLocalizedVersionRecord,
     BGGPlaySessionRecord,
     normalize_batch_item,
     normalize_collection_item,
@@ -26,7 +27,6 @@ def test_detail_normalizes_values_and_relations_without_io():
             "stats": {"rating_average": "4.35", "bgg_rank": "4"},
         }
     )
-
     assert record == BGGDetailRecord(
         bgg_id=123,
         item_type=None,
@@ -57,6 +57,27 @@ def test_detail_normalizes_values_and_relations_without_io():
         plays_count=None,
         expansions=(22, 22),
         designers_list=("Stefan Feld",),
+    )
+
+
+def test_detail_normalizes_localized_version_titles():
+    record = normalize_detail(
+        {
+            "id": 378758,
+            "localized_versions": [
+                {
+                    "id": "667143",
+                    "language": "Polish",
+                    "canonical_name": "Podziemne Imperium",
+                }
+            ],
+        }
+    )
+
+    assert record.localized_versions == (
+        BGGLocalizedVersionRecord(
+            version_id=667143, language="Polish", title="Podziemne Imperium"
+        ),
     )
 
 
