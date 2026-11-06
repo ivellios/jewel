@@ -24,6 +24,8 @@ class Command(BaseCommand):
         all_names = steam_repository.get_all_names()
         for game_copy in tqdm(game_copies):
             game = game_copy.game
+            if game.name is None:
+                continue
             steam_game = steam_repository.find_by_name(
                 game.name, all_names, threshold=fuzzy_threshold
             )
