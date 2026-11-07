@@ -64,6 +64,7 @@ class BGGDetailRecord:
     families: tuple[str, ...] = ()
     localized_versions: tuple[BGGLocalizedVersionRecord, ...] = ()
     suggested_players: tuple[Mapping[str, object], ...] | None = None
+    numplayers_summary: Mapping[str, str] | None = None
 
 
 @dataclass(frozen=True)
@@ -199,6 +200,7 @@ def normalize_detail(raw: RawResponse) -> BGGDetailRecord:
         families=_strings(_value(raw, "families")),
         localized_versions=_localized_versions(_value(raw, "localized_versions")),
         suggested_players=_suggested_players(_value(raw, "suggested_players")),
+        numplayers_summary=_poll_summary(raw),
     )
 
 
@@ -449,6 +451,40 @@ def _parse_results_mapping(
         if entry:
             entries.append(entry)
     return tuple(entries)
+
+
+def _poll_summary(raw: RawResponse) -> Mapping[str, str] | None:
+    """Extract ``bestwith`` / ``recommendedwith`` from poll-summary.
+
+    The ``suggested_numplayers`` element in BGG batch responses
+    (``stats=1``) may contain a ``poll-summary`` sub-element with
+    ``result`` children whose ``name`` attributes are
+    ``bestwith`` and ``recommmendedwith`` (note BGG's typo) or
+    the corrected ``recommendedwith``.
+
+    Returns a shallow mapping like::
+
+        {"bestwith": "Best with 6–8 players", "recommendedwith": "Recommended with 4–11 players"}
+
+    or ``None`` when no poll-summary is present.
+    """
+    snp = _value(raw, "suggested_numplayers")
+    if not isinstance(snp, Mapping):
+        return None
+    summary = _value(snp, "poll-summary")
+    if not isinstance(summary, Mapping):
+        return None
+    known_names = {"bestwith", "recommmendedwith", "recommendedwith"}
+    mapping: dict[str, str] = {}
+    for result_item in _items(summary.get("result")):
+        name = _text(_value(result_item, "name"))
+        value = _text(_value(result_item, "value"))
+        # Ignore unknown names (e.g. custom poll types).
+        if name is None or value is None or name not in known_names:
+            continue
+        key = "bestwith" if name == "bestwith" else "recommendedwith"
+        mapping[key] = value
+    return mapping if mapping else None
 
 
 def _parse_legacy_format(

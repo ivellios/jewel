@@ -139,6 +139,17 @@ class BGGClient:
                             else None,
                         }
                     )
+                # Attach per-game poll-summary as a plain mapping that the
+                # adapter's _poll_summary recognises (Mapping · Mapping · list).
+                # In real BGG XML, poll-summary is a direct child of item,
+                # not wrapped inside <suggested_numplayers>.
+                poll = element.find("poll-summary[@name='suggested_numplayers']")
+                if poll is not None:
+                    game._data["suggested_numplayers"] = {
+                        "poll-summary": {
+                            "result": [dict(r.attrib) for r in poll.findall("result")],
+                        },
+                    }
                 results.append({**game._data, "localized_versions": localized_versions})
             if {item["id"] for item in results} != set(ids):
                 raise BGGApiError("BGG detail batch returned an unexpected set of IDs")

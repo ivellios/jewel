@@ -91,6 +91,7 @@ def _mapping_pairs(record: BGGDetailRecord) -> list[tuple[str, object]]:
         ("users_owned", record.users_owned),
         ("plays_count", record.plays_count),
         ("suggested_players", record.suggested_players),
+        ("numplayers_summary", record.numplayers_summary),
     ]
 
     return [(col, val) for col, val in mappings if val is not None]

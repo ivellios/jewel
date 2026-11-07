@@ -67,6 +67,11 @@ class BGGMetadata(models.Model):
         blank=True,
         help_text="Structured community player-count poll (best/recommended/not recommended by player count).",
     )
+    numplayers_summary = models.JSONField(
+        null=True,
+        blank=True,
+        help_text="Raw BGG poll summary: bestwith / recommendedwith text.",
+    )
 
     class Meta:
         ordering = ["bgg_id"]

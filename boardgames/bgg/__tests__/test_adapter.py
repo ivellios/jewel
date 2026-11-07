@@ -298,3 +298,140 @@ def test_batch_and_search_records_normalize_deterministically():
     assert record.bgg_id == 5
     assert record.name == "Catan"
     assert normalize_batch_item({"id": 5, "year": "not-a-year"}).year is None
+
+
+def test_poll_summary_extracts_bestwith_and_recommendedwith():
+    """Mascarade-style poll-summary results extraction."""
+
+    raw = {
+        "id": "139030",
+        "suggested_numplayers": {
+            "poll-summary": {
+                "result": [
+                    {"name": "bestwith", "value": "Best with 6–8 players"},
+                    {
+                        "name": "recommmendedwith",
+                        "value": "Recommended with 4–11 players",
+                    },
+                ],
+            },
+        },
+    }
+    record = normalize_detail(raw)
+    assert record.numplayers_summary == {
+        "bestwith": "Best with 6–8 players",
+        "recommendedwith": "Recommended with 4–11 players",
+    }
+
+
+def test_poll_summary_accepts_corrected_spelling():
+    """When BGG uses the corrected 'recommendedwith' spelling, it is accepted."""
+
+    raw = {
+        "id": "139030",
+        "suggested_numplayers": {
+            "poll-summary": {
+                "result": [
+                    {"name": "bestwith", "value": "Best with 3 players"},
+                    {"name": "recommendedwith", "value": "Recommended with 5 players"},
+                ],
+            },
+        },
+    }
+    record = normalize_detail(raw)
+    assert record.numplayers_summary == {
+        "bestwith": "Best with 3 players",
+        "recommendedwith": "Recommended with 5 players",
+    }
+
+
+def test_poll_summary_return_none_when_no_poll_summary():
+    """Missing poll-summary returns None (not a mapping)."""
+
+    record = normalize_detail({"id": "123"})
+    assert record.numplayers_summary is None
+
+
+def test_poll_summary_return_none_when_suggested_numplayers_missing():
+    """When suggested_numplayers is absent, returns None."""
+
+    raw = {
+        "id": "123",
+        "suggested_numplayers": None,
+    }
+    record = normalize_detail(raw)
+    assert record.numplayers_summary is None
+
+
+def test_poll_summary_only_bestwith():
+    """When only bestwith is present, recommendedwith key is absent."""
+
+    raw = {
+        "id": "123",
+        "suggested_numplayers": {
+            "poll-summary": {
+                "result": [
+                    {"name": "bestwith", "value": "Best with 2 players"},
+                ],
+            },
+        },
+    }
+    record = normalize_detail(raw)
+    assert record.numplayers_summary == {"bestwith": "Best with 2 players"}
+
+
+def test_poll_summary_only_recommendedwith():
+    """When only recommendedwith is present, bestwith key is absent."""
+
+    raw = {
+        "id": "123",
+        "suggested_numplayers": {
+            "poll-summary": {
+                "result": [
+                    {"name": "recommmendedwith", "value": "Recommended with 4 players"},
+                ],
+            },
+        },
+    }
+    record = normalize_detail(raw)
+    assert record.numplayers_summary == {
+        "recommendedwith": "Recommended with 4 players"
+    }
+
+
+def test_poll_summary_empty_result_returns_none():
+    """Empty result array returns None (not empty mapping)."""
+
+    raw = {
+        "id": "123",
+        "suggested_numplayers": {
+            "poll-summary": {
+                "result": [],
+            },
+        },
+    }
+    record = normalize_detail(raw)
+    assert record.numplayers_summary is None
+
+
+def test_poll_summary_ignores_unknown_names():
+    """Unknown poll names are silently skipped, not treated as recommended."""
+
+    raw = {
+        "id": "123",
+        "suggested_numplayers": {
+            "poll-summary": {
+                "result": [
+                    {"name": "bestwith", "value": "Best with 3 players"},
+                    {"name": "recommendedwith", "value": "Recommended with 5 players"},
+                    {"name": "funwith", "value": "Fun with 2 players"},
+                ],
+            },
+        },
+    }
+    record = normalize_detail(raw)
+    assert record.numplayers_summary == {
+        "bestwith": "Best with 3 players",
+        "recommendedwith": "Recommended with 5 players",
+    }
+    assert "funwith" not in record.numplayers_summary

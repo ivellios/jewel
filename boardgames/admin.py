@@ -11,6 +11,8 @@ BGGExpansion: read-only relationship data — derived from BGG.
 BGGSyncRun: read-only diagnostic records — run lifecycle, counters, errors.
 """
 
+from collections.abc import Mapping
+
 from django.contrib import admin
 from django.db.models import Prefetch, Q
 from django.urls import reverse
@@ -427,37 +429,27 @@ class BoardGameAdmin(admin.ModelAdmin):
 
 
 def _community_labels(obj: BoardGame) -> str:
+    """Display recommendedwith text from poll summary (Packet 4)."""
     meta = getattr(obj, "metadata", None)
-    if meta is None or not meta.suggested_players:
+    if meta is None:
         return "—"
-    entries = meta.suggested_players
-    positive = (e.get("recommended") for e in entries)
-    max_val = max((v for v in positive if v and v > 0), default=None)
-    if max_val is None:
+    summary = getattr(meta, "numplayers_summary", None)
+    if not summary or not isinstance(summary, Mapping):
         return "—"
-    labels = [
-        e["numplayers"]
-        for e in entries
-        if e.get("recommended") is not None and e["recommended"] == max_val
-    ]
-    return _labels_with_votes("recommended", labels, max_val)
+    text = summary.get("recommendedwith")
+    return text if text else "—"
 
 
 def _best_labels(obj: BoardGame) -> str:
+    """Display bestwith text from poll summary (Packet 4)."""
     meta = getattr(obj, "metadata", None)
-    if meta is None or not meta.suggested_players:
+    if meta is None:
         return "—"
-    entries = meta.suggested_players
-    positive = (e.get("best") for e in entries)
-    max_val = max((v for v in positive if v and v > 0), default=None)
-    if max_val is None:
+    summary = getattr(meta, "numplayers_summary", None)
+    if not summary or not isinstance(summary, Mapping):
         return "—"
-    labels = [
-        e["numplayers"]
-        for e in entries
-        if e.get("best") is not None and e["best"] == max_val
-    ]
-    return _labels_with_votes("best", labels, max_val)
+    text = summary.get("bestwith")
+    return text if text else "—"
 
 
 def _labels_with_votes(label: str, tied_labels: list[str], max_val: int) -> str:
@@ -520,6 +512,7 @@ class BGGMetadataAdmin(admin.ModelAdmin):
         "users_owned",
         "collection_plays",
         "suggested_players",
+        "numplayers_summary",
     ]
     exclude = ["plays_count"]
 
