@@ -191,6 +191,9 @@ class BoardGameAdmin(admin.ModelAdmin):
         "bgg_rating",
         "bgg_playing_time",
         "bgg_rank",
+        "official_player_range",
+        "community_player_labels",
+        "best_player_labels",
         "imported",
         "language",
     ]
@@ -262,6 +265,9 @@ class BoardGameAdmin(admin.ModelAdmin):
         "bgg_rating",
         "bgg_playing_time",
         "bgg_rank",
+        "official_player_range",
+        "community_player_labels",
+        "best_player_labels",
         "expansion_links",
     ]
 
@@ -398,6 +404,68 @@ class BoardGameAdmin(admin.ModelAdmin):
                 rows,
             ),
         )
+
+    # -- player-count columns (Packet 3) --
+
+    @admin.display(description="Official")
+    def official_player_range(self, obj: BoardGame) -> str:
+        """BGG metadata min–max player range (minplayers / maxplayers)."""
+        metadata = obj.metadata
+        if metadata is None:
+            return "—"
+        return _range_label(metadata.minplayers, metadata.maxplayers)
+
+    @admin.display(description="Community")
+    def community_player_labels(self, obj: BoardGame) -> str:
+        """numplayers labels tied for max positive *recommended* poll votes."""
+        return _community_labels(obj)
+
+    @admin.display(description="Best")
+    def best_player_labels(self, obj: BoardGame) -> str:
+        """numplayers labels tied for max positive *best* poll votes."""
+        return _best_labels(obj)
+
+
+def _community_labels(obj: BoardGame) -> str:
+    meta = getattr(obj, "metadata", None)
+    if meta is None or not meta.suggested_players:
+        return "—"
+    entries = meta.suggested_players
+    positive = (e.get("recommended") for e in entries)
+    max_val = max((v for v in positive if v and v > 0), default=None)
+    if max_val is None:
+        return "—"
+    labels = [
+        e["numplayers"]
+        for e in entries
+        if e.get("recommended") is not None and e["recommended"] == max_val
+    ]
+    return _labels_with_votes("recommended", labels, max_val)
+
+
+def _best_labels(obj: BoardGame) -> str:
+    meta = getattr(obj, "metadata", None)
+    if meta is None or not meta.suggested_players:
+        return "—"
+    entries = meta.suggested_players
+    positive = (e.get("best") for e in entries)
+    max_val = max((v for v in positive if v and v > 0), default=None)
+    if max_val is None:
+        return "—"
+    labels = [
+        e["numplayers"]
+        for e in entries
+        if e.get("best") is not None and e["best"] == max_val
+    ]
+    return _labels_with_votes("best", labels, max_val)
+
+
+def _labels_with_votes(label: str, tied_labels: list[str], max_val: int) -> str:
+    """Join tied numplayers labels; append vote count when concise."""
+    joined = ", ".join(tied_labels)
+    if max_val > 0 and max_val <= 999:
+        return f"{joined} ({max_val})"
+    return joined
 
 
 # ------------------------------------------------------------------ #

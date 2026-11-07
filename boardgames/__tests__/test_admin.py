@@ -239,6 +239,174 @@ class BoardGameDisplayHelpersTest(TestCase):
         self.assertIn(ShowRemovedFilter, self.admin.list_filter)
         self.assertNotIn("metadata", self.admin.list_filter)
 
+    def test_official_player_range_shortcut(self):
+        self.assertIn("official_player_range", self.admin.list_display)
+        self.assertIn("official_player_range", self.admin.readonly_fields)
+
+    def test_community_player_labels_shortcut(self):
+        self.assertIn("community_player_labels", self.admin.list_display)
+        self.assertIn("community_player_labels", self.admin.readonly_fields)
+
+    def test_best_player_labels_shortcut(self):
+        self.assertIn("best_player_labels", self.admin.list_display)
+        self.assertIn("best_player_labels", self.admin.readonly_fields)
+
+
+# ------------------------------------------------------------------ #
+# BoardGameAdmin — player-count columns (Packet 3)
+# ------------------------------------------------------------------ #
+
+
+class BoardGamePlayerCountColumnsTest(TestCase):
+    """BoardGameAdmin: Official, Community, Best columns."""
+
+    def setUp(self):
+        self.site = AdminSite()
+        self.admin = BoardGameAdmin(BoardGame, self.site)
+
+    def _make_metadata_with_suggested(
+        self, bgg_id=200000, minplayers=None, maxplayers=None, suggested=None
+    ):
+        return BGGMetadataFactory(
+            bgg_id=bgg_id,
+            minplayers=minplayers,
+            maxplayers=maxplayers,
+            suggested_players=suggested,
+        )
+
+    # -- Official --
+
+    def test_official_shows_range_from_metadata(self):
+        meta = self._make_metadata_with_suggested(minplayers=2, maxplayers=4)
+        bg = BoardGameFactory(metadata=meta)
+        self.assertEqual(self.admin.official_player_range(bg), "2–4")
+
+    def test_official_shows_single(self):
+        meta = self._make_metadata_with_suggested(minplayers=4, maxplayers=4)
+        bg = BoardGameFactory(metadata=meta)
+        self.assertEqual(self.admin.official_player_range(bg), "4")
+
+    def test_official_returns_dash_when_no_metadata(self):
+        bg = BoardGameFactory(metadata=None)
+        self.assertEqual(self.admin.official_player_range(bg), "—")
+
+    def test_official_returns_dash_when_no_players(self):
+        meta = BGGMetadataFactory(minplayers=None, maxplayers=None)
+        bg = BoardGameFactory(metadata=meta)
+        self.assertEqual(self.admin.official_player_range(bg), "—")
+
+    # -- Community --
+
+    def test_community_shows_tied_max_recommended_labels(self):
+        meta = self._make_metadata_with_suggested(
+            suggested=(
+                {"numplayers": "2", "recommended": 10},
+                {"numplayers": "4", "recommended": 10},
+                {"numplayers": "6", "recommended": 5},
+            )
+        )
+        bg = BoardGameFactory(metadata=meta)
+        self.assertEqual(self.admin.community_player_labels(bg), "2, 4 (10)")
+
+    def test_community_single_tied(self):
+        meta = self._make_metadata_with_suggested(
+            suggested=(
+                {"numplayers": "4", "recommended": 10},
+                {"numplayers": "2", "recommended": 3},
+            )
+        )
+        bg = BoardGameFactory(metadata=meta)
+        self.assertEqual(self.admin.community_player_labels(bg), "4 (10)")
+
+    def test_community_no_positive_recommended_votes(self):
+        meta = self._make_metadata_with_suggested(
+            suggested=(
+                {"numplayers": "2", "recommended": 0},
+                {"numplayers": "4", "recommended": -2},
+            )
+        )
+        bg = BoardGameFactory(metadata=meta)
+        self.assertEqual(self.admin.community_player_labels(bg), "—")
+
+    def test_community_missing_suggested_players(self):
+        meta = BGGMetadataFactory(suggested_players=None)
+        bg = BoardGameFactory(metadata=meta)
+        self.assertEqual(self.admin.community_player_labels(bg), "—")
+
+    def test_community_no_metadata(self):
+        bg = BoardGameFactory(metadata=None)
+        self.assertEqual(self.admin.community_player_labels(bg), "—")
+
+    # -- Best --
+
+    def test_best_shows_tied_max_best_labels(self):
+        meta = self._make_metadata_with_suggested(
+            suggested=(
+                {"numplayers": "1", "best": 5},
+                {"numplayers": "2", "best": 5},
+                {"numplayers": "3", "best": 3},
+            )
+        )
+        bg = BoardGameFactory(metadata=meta)
+        self.assertEqual(self.admin.best_player_labels(bg), "1, 2 (5)")
+
+    def test_best_single_tied(self):
+        meta = self._make_metadata_with_suggested(
+            suggested=(
+                {"numplayers": "6+", "best": 15},
+                {"numplayers": "4", "best": 8},
+            )
+        )
+        bg = BoardGameFactory(metadata=meta)
+        self.assertEqual(self.admin.best_player_labels(bg), "6+ (15)")
+
+    def test_best_no_positive_best_votes(self):
+        meta = self._make_metadata_with_suggested(
+            suggested=(
+                {"numplayers": "2", "best": 0},
+                {"numplayers": "4", "best": -3},
+            )
+        )
+        bg = BoardGameFactory(metadata=meta)
+        self.assertEqual(self.admin.best_player_labels(bg), "—")
+
+    def test_best_missing_suggested_players(self):
+        meta = BGGMetadataFactory(suggested_players=None)
+        bg = BoardGameFactory(metadata=meta)
+        self.assertEqual(self.admin.best_player_labels(bg), "—")
+
+    def test_best_no_metadata(self):
+        bg = BoardGameFactory(metadata=None)
+        self.assertEqual(self.admin.best_player_labels(bg), "—")
+
+    # -- Mixed (both best and recommended present) --
+
+    def test_community_and_best_can_differ(self):
+        meta = self._make_metadata_with_suggested(
+            suggested=(
+                {"numplayers": "2", "best": 10, "recommended": 3},
+                {"numplayers": "4", "best": 5, "recommended": 10},
+                {"numplayers": "6", "best": 5, "recommended": 10},
+            )
+        )
+        bg = BoardGameFactory(metadata=meta)
+        # Best ties at 10 for label "2"
+        self.assertEqual(self.admin.best_player_labels(bg), "2 (10)")
+        # Community ties at 10 for labels "4, 6"
+        self.assertEqual(self.admin.community_player_labels(bg), "4, 6 (10)")
+
+    def test_official_is_independent_from_suggested_players(self):
+        meta = self._make_metadata_with_suggested(
+            minplayers=1,
+            maxplayers=6,
+            suggested=(
+                {"numplayers": "2", "best": 5, "recommended": 3},
+                {"numplayers": "4", "best": 3, "recommended": 5},
+            ),
+        )
+        bg = BoardGameFactory(metadata=meta)
+        self.assertEqual(self.admin.official_player_range(bg), "1–6")
+
 
 # ------------------------------------------------------------------ #
 # BoardGameAdmin — deletion guard
