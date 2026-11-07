@@ -8,7 +8,7 @@ Verifies:
 - metadata (BGG FK), imported, owned, removed remain read-only.
 - ``has_delete_permission`` blocks hard-deletion of imported rows,
   while allowing deletion of local-only rows.
-- ``metadata_link`` and ``state`` display helpers render correctly.
+- ``metadata_link`` display helper renders correctly.
 - Existing game admin tests remain unaffected.
 """
 
@@ -238,18 +238,6 @@ class BoardGameDisplayHelpersTest(TestCase):
         self.assertIn(ShowExpansionsFilter, self.admin.list_filter)
         self.assertIn(ShowRemovedFilter, self.admin.list_filter)
         self.assertNotIn("metadata", self.admin.list_filter)
-
-    def test_state_imported(self):
-        """state shows 'Imported' for imported copies."""
-        bg = BoardGameFactory(imported=True)
-        result = self.admin.state(bg)
-        self.assertIn("Imported", result)
-
-    def test_state_local_only(self):
-        """state shows 'Local-only' for non-imported copies."""
-        bg = BoardGameFactory(imported=False)
-        result = self.admin.state(bg)
-        self.assertIn("Local-only", result)
 
 
 # ------------------------------------------------------------------ #

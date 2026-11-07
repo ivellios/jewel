@@ -2,7 +2,7 @@
 
 BoardGame: editable local fields (name, language, edition_label, condition,
 storage, purchase_date, inherited CollectionItem fields); read-only
-source/ownership/state fields (metadata, imported, owned, removed).
+source/ownership fields (metadata, imported, owned, removed).
 
 BGGMetadata: read-only source metadata — BGG-owned fields only.
 
@@ -22,11 +22,6 @@ from boardgames.models import (
     BGGSyncRun,
     BoardGame,
 )
-
-
-def _state_label(value: bool) -> str:
-    """Human-readable state label."""
-    return "Imported" if value else "Local"
 
 
 def _metadata_destination(metadata: BGGMetadata):
@@ -196,10 +191,7 @@ class BoardGameAdmin(admin.ModelAdmin):
         "bgg_rating",
         "bgg_playing_time",
         "bgg_rank",
-        "state",
         "imported",
-        "owned",
-        "removed",
         "language",
     ]
     list_filter = [
@@ -270,7 +262,6 @@ class BoardGameAdmin(admin.ModelAdmin):
         "bgg_rating",
         "bgg_playing_time",
         "bgg_rank",
-        "state",
         "expansion_links",
     ]
 
@@ -296,17 +287,6 @@ class BoardGameAdmin(admin.ModelAdmin):
                 url=url,
             )
         return "— (local-only)"
-
-    @admin.display(description="State")
-    def state(self, obj: BoardGame) -> str:
-        """Show local vs. imported state at a glance."""
-        if obj.imported:
-            return format_html(
-                '<span style="color: #0a0;">{label}</span>', label="Imported"
-            )
-        return format_html(
-            '<span style="color: #666;">{label}</span>', label="Local-only"
-        )
 
     def get_queryset(self, request):
         return (
