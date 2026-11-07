@@ -63,6 +63,7 @@ class BGGDetailRecord:
     categories_list: tuple[str, ...] = ()
     families: tuple[str, ...] = ()
     localized_versions: tuple[BGGLocalizedVersionRecord, ...] = ()
+    suggested_players: tuple[Mapping[str, object], ...] | None = None
 
 
 @dataclass(frozen=True)
@@ -197,6 +198,7 @@ def normalize_detail(raw: RawResponse) -> BGGDetailRecord:
         categories_list=categories,
         families=_strings(_value(raw, "families")),
         localized_versions=_localized_versions(_value(raw, "localized_versions")),
+        suggested_players=_suggested_players(_value(raw, "suggested_players")),
     )
 
 
@@ -385,6 +387,104 @@ def _localized_versions(value: object | None) -> tuple[BGGLocalizedVersionRecord
             )
         )
     return tuple(records)
+
+
+def _suggested_players(
+    value: object | None,
+) -> tuple[Mapping[str, object], ...] | None:
+    """Extract structured player-count poll data from raw BGG response.
+
+    Handles both the legacy list/player format and the actual BGG API
+    results mapping::
+
+        {
+            "total_votes": N,
+            "results": {
+                "1": {"best_rating": 42, "recommended_rating": 10, ...},
+                "7+": {"best_rating": 5, ...},
+            },
+        }
+
+    Mapping ``*_rating`` keys to stable categories
+    (``best``, ``recommended``, ``notrecommended``) and preserving
+    player-count labels such as ``"7+"`` as-is.
+
+    Returns ``None`` when the poll key is absent (partial fetch);
+    returns an empty tuple when present but no valid entries found.
+    """
+
+    if value is None:
+        return None
+
+    if isinstance(value, Mapping):
+        return _parse_results_mapping(value)
+
+    return _parse_legacy_format(value)
+
+
+def _parse_results_mapping(
+    value: Mapping[str, object],
+) -> tuple[Mapping[str, object], ...]:
+    """Parse the actual BGG API results mapping."""
+
+    results = value.get("results")
+    if not isinstance(results, Mapping):
+        return ()
+
+    entries: list[dict[str, object]] = []
+    for player_count, votes in results.items():
+        if not isinstance(votes, Mapping):
+            continue
+        entry: dict[str, object] = {}
+        # Preserve player-count label as string (e.g., '7+').
+        entry["numplayers"] = str(player_count)
+        for src, dest in (
+            ("best_rating", "best"),
+            ("recommended_rating", "recommended"),
+            ("not_recommended_rating", "notrecommended"),
+        ):
+            cat_val = _integer(votes.get(src))
+            if cat_val is not None:
+                entry[dest] = cat_val
+        if entry:
+            entries.append(entry)
+    return tuple(entries)
+
+
+def _parse_legacy_format(
+    value: object | None,
+) -> tuple[Mapping[str, object], ...]:
+    """Handle the legacy list/player format (deprecated but kept)."""
+
+    def _poll_votes(node: object | None) -> dict[str, object] | None:
+        if not isinstance(node, Mapping):
+            return None
+        numplayers = node.get("numplayers")
+        categories: dict[str, object] = {}
+        for category in ("best", "recommended", "notrecommended"):
+            cat_val = _integer(node.get(category))
+            if cat_val is not None:
+                categories[category] = cat_val
+        # Only return when numplayers is present and meaningful
+        # (or categories carry data).
+        if numplayers is None and not categories:
+            return None
+        result: dict[str, object] = {}
+        if numplayers is not None:
+            result["numplayers"] = numplayers
+        result.update(categories)
+        return result if result else None
+
+    # Handle BGG API nesting: value may be {"suggested_players": ...} or
+    # {"player": [...]} or the list directly.
+    inner = _value(value, "suggested_players") if isinstance(value, Mapping) else value
+    players = _value(inner, "player") if isinstance(inner, Mapping) else inner
+    result = []
+    for player_count in _items(players):
+        poll = _poll_votes(player_count)
+        if poll is not None:
+            result.append(poll)
+    return tuple(result)
 
 
 def _normalize_play_session(raw: RawResponse) -> BGGPlaySessionRecord:

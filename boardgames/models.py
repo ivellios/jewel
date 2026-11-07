@@ -62,6 +62,11 @@ class BGGMetadata(models.Model):
     users_rated = models.PositiveIntegerField(null=True, blank=True)
     users_owned = models.PositiveIntegerField(null=True, blank=True)
     plays_count = models.PositiveIntegerField(null=True, blank=True)
+    suggested_players = models.JSONField(
+        null=True,
+        blank=True,
+        help_text="Structured community player-count poll (best/recommended/not recommended by player count).",
+    )
 
     class Meta:
         ordering = ["bgg_id"]

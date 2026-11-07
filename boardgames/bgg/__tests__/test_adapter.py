@@ -189,6 +189,108 @@ def test_normalizers_accept_plain_fixture_objects_and_never_construct_a_client(
     assert normalize_detail(FixtureDetail()).expansions == (3,)
 
 
+def test_suggested_players_when_present():
+    """Suggested poll data with best/recommended/notrecommended."""
+
+    raw = {
+        "id": "287843",
+        "suggested_players": [
+            {
+                "numplayers": "1",
+                "best": "42",
+                "recommended": None,
+                "notrecommended": "8",
+            },
+            {
+                "numplayers": "2",
+                "best": None,
+                "recommended": "15",
+                "notrecommended": "2",
+            },
+            {
+                "numplayers": "3",
+                "best": "100",
+                "recommended": "30",
+                "notrecommended": "0",
+            },
+            # Items with no votes are skipped.
+            {"numplayers": "5"},
+        ],
+    }
+    record = normalize_detail(raw)
+    assert record.suggested_players == (
+        {"numplayers": "1", "best": 42, "notrecommended": 8},
+        {"numplayers": "2", "recommended": 15, "notrecommended": 2},
+        {"numplayers": "3", "best": 100, "recommended": 30, "notrecommended": 0},
+        {"numplayers": "5"},
+    )
+
+
+def test_suggested_players_with_actual_bgg_results_mapping():
+    """Parse the actual BGG API results mapping structure."""
+
+    raw = {
+        "id": "287843",
+        "suggested_players": {
+            "total_votes": 360,
+            "results": {
+                "1": {"best_rating": 42, "recommended_rating": 10},
+                "2": {"best_rating": 15, "not_recommended_rating": 2},
+                "3": {
+                    "best_rating": 100,
+                    "recommended_rating": 30,
+                    "not_recommended_rating": 0,
+                },
+                "4": {},
+                "7+": {"best_rating": 5, "recommended_rating": 1},
+                # Missing rating keys are simply omitted.
+                "5": {"not_recommended_rating": 8},
+            },
+        },
+    }
+    record = normalize_detail(raw)
+    assert record.suggested_players == (
+        {"numplayers": "1", "best": 42, "recommended": 10},
+        {"numplayers": "2", "best": 15, "notrecommended": 2},
+        {"numplayers": "3", "best": 100, "recommended": 30, "notrecommended": 0},
+        {"numplayers": "4"},
+        {"numplayers": "7+", "best": 5, "recommended": 1},
+        {"numplayers": "5", "notrecommended": 8},
+    )
+
+
+def test_suggested_players_missing_poll_key_returns_none():
+    """When suggested_players is absent, the field is None."""
+
+    record = normalize_detail({"id": "123"})
+    assert record.suggested_players is None
+
+
+def test_suggested_players_present_but_empty_results():
+    """Present-but-empty results normalizes to empty tuple, not None."""
+
+    raw = {
+        "id": "999",
+        "suggested_players": {
+            "total_votes": 0,
+            "results": {},
+        },
+    }
+    record = normalize_detail(raw)
+    assert record.suggested_players == ()
+
+
+def test_suggested_players_with_malformed_entries_ignored():
+    """Non-dict items and items with no valid data are skipped."""
+
+    raw = {
+        "id": "999",
+        "suggested_players": ["not_a_dict", 42, {}],
+    }
+    record = normalize_detail(raw)
+    assert record.suggested_players == ()
+
+
 def test_batch_and_search_records_normalize_deterministically():
     record = normalize_batch_item(
         {"id": "5", "name": "  Catan ", "type": "boardgame", "year": "1995"}

@@ -451,6 +451,7 @@ class BGGMetadataAdmin(admin.ModelAdmin):
         "users_rated",
         "users_owned",
         "collection_plays",
+        "suggested_players",
     ]
     exclude = ["plays_count"]
 
