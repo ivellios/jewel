@@ -11,6 +11,7 @@ BGGExpansion: read-only relationship data — derived from BGG.
 BGGSyncRun: read-only diagnostic records — run lifecycle, counters, errors.
 """
 
+import re
 from collections.abc import Mapping
 
 from django.contrib import admin
@@ -112,6 +113,34 @@ class PlayingTimeFilter(admin.SimpleListFilter):
         return queryset
 
 
+class OfficialPlayerCountFilter(admin.SimpleListFilter):
+    """Filter games by BGG's official supported player range."""
+
+    title = "Official player count"
+    parameter_name = "official_players"
+
+    def lookups(self, request, model_admin):
+        return (
+            ("1", "1 player"),
+            ("2", "2 players"),
+            ("3", "3 players"),
+            ("4", "4 players"),
+            ("5_plus", "5+ players"),
+        )
+
+    def queryset(self, request, queryset):
+        value = self.value()
+        if value in {"1", "2", "3", "4"}:
+            player_count = int(value)
+            return queryset.filter(
+                metadata__minplayers__lte=player_count,
+                metadata__maxplayers__gte=player_count,
+            )
+        if value == "5_plus":
+            return queryset.filter(metadata__maxplayers__gte=5)
+        return queryset
+
+
 class ShowRemovedFilter(admin.SimpleListFilter):
     title = "Wyświetlaj usunięte"
     parameter_name = "show_removed"
@@ -205,6 +234,7 @@ class BoardGameAdmin(admin.ModelAdmin):
         ShowRemovedFilter,
         HasBGGRankFilter,
         PlayingTimeFilter,
+        OfficialPlayerCountFilter,
         ShowExpansionsFilter,
         "language",
     ]
@@ -419,13 +449,23 @@ class BoardGameAdmin(admin.ModelAdmin):
 
     @admin.display(description="Community")
     def community_player_labels(self, obj: BoardGame) -> str:
-        """numplayers labels tied for max positive *recommended* poll votes."""
+        """Show only the player-count range from BGG's recommendation summary."""
         return _community_labels(obj)
 
     @admin.display(description="Best")
     def best_player_labels(self, obj: BoardGame) -> str:
-        """numplayers labels tied for max positive *best* poll votes."""
+        """Show only the player-count range from BGG's best-player summary."""
         return _best_labels(obj)
+
+
+def _player_count_summary_label(value: object) -> str:
+    """Reduce BGG summary text to a compact player count/range."""
+    if not isinstance(value, str):
+        return "—"
+    match = re.search(r"\d+(?:\s*[–—-]\s*\d+|\+)?", value)
+    if match is None:
+        return "—"
+    return re.sub(r"\s*[–—]\s*", "-", match.group())
 
 
 def _community_labels(obj: BoardGame) -> str:
@@ -436,8 +476,7 @@ def _community_labels(obj: BoardGame) -> str:
     summary = getattr(meta, "numplayers_summary", None)
     if not summary or not isinstance(summary, Mapping):
         return "—"
-    text = summary.get("recommendedwith")
-    return text if text else "—"
+    return _player_count_summary_label(summary.get("recommendedwith"))
 
 
 def _best_labels(obj: BoardGame) -> str:
@@ -448,8 +487,7 @@ def _best_labels(obj: BoardGame) -> str:
     summary = getattr(meta, "numplayers_summary", None)
     if not summary or not isinstance(summary, Mapping):
         return "—"
-    text = summary.get("bestwith")
-    return text if text else "—"
+    return _player_count_summary_label(summary.get("bestwith"))
 
 
 def _labels_with_votes(label: str, tied_labels: list[str], max_val: int) -> str:

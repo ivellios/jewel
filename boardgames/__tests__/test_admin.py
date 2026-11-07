@@ -23,6 +23,7 @@ from boardgames.admin import (
     BGGSyncRunAdmin,
     BoardGameAdmin,
     HasBGGRankFilter,
+    OfficialPlayerCountFilter,
     PlayingTimeFilter,
     ShowExpansionsFilter,
     ShowRemovedFilter,
@@ -297,7 +298,7 @@ class BoardGamePlayerCountColumnsTest(TestCase):
             maxplayers=kwargs.get("maxplayers"),
         )
 
-    def test_community_shows_recommendedwith_text(self):
+    def test_community_shows_only_range_with_plain_hyphen(self):
         """Community column shows recommendedwith from poll summary."""
         meta = self._make_metadata_with_summary(
             numplayers_summary={
@@ -308,11 +309,11 @@ class BoardGamePlayerCountColumnsTest(TestCase):
         bg = BoardGameFactory(metadata=meta)
         self.assertEqual(
             self.admin.community_player_labels(bg),
-            "Recommended with 4–11 players",
+            "4-11",
         )
 
-    def test_best_shows_bestwith_text(self):
-        """Best column shows bestwith from poll summary."""
+    def test_best_shows_only_range_with_plain_hyphen(self):
+        """Best column shows only the compact range from poll summary."""
         meta = self._make_metadata_with_summary(
             numplayers_summary={
                 "bestwith": "Best with 6–8 players",
@@ -320,7 +321,19 @@ class BoardGamePlayerCountColumnsTest(TestCase):
             }
         )
         bg = BoardGameFactory(metadata=meta)
-        self.assertEqual(self.admin.best_player_labels(bg), "Best with 6–8 players")
+        self.assertEqual(self.admin.best_player_labels(bg), "6-8")
+
+    def test_single_player_count_stays_compact(self):
+        meta = self._make_metadata_with_summary(
+            numplayers_summary={
+                "bestwith": "Best with 5 players",
+                "recommendedwith": "Recommended with 3 players",
+            }
+        )
+        bg = BoardGameFactory(metadata=meta)
+
+        self.assertEqual(self.admin.community_player_labels(bg), "3")
+        self.assertEqual(self.admin.best_player_labels(bg), "5")
 
     def test_community_returns_dash_without_summary(self):
         """Community shows '—' when numplayers_summary is missing."""
@@ -608,6 +621,7 @@ class LegacyBoardGameAdminTest(TestCase):
             ShowRemovedFilter,
             HasBGGRankFilter,
             PlayingTimeFilter,
+            OfficialPlayerCountFilter,
             ShowExpansionsFilter,
             "language",
         ]
@@ -725,6 +739,57 @@ class BoardGameListFilterTest(TestCase):
                 ).queryset(self.request, BoardGame.objects.all())
                 self.assertEqual(
                     set(filtered.values_list("pk", flat=True)), expected_pks
+                )
+
+    def test_official_player_count_filter_uses_bgg_min_and_max(self):
+        ranges = {
+            "solo": (1, 1),
+            "one_to_four": (1, 4),
+            "two_to_five": (2, 5),
+            "five_to_eight": (5, 8),
+            "up_to_four": (None, 4),
+            "unknown_max": (2, None),
+        }
+        games = {}
+        for index, (label, (minimum, maximum)) in enumerate(ranges.items()):
+            metadata = BGGMetadataFactory(
+                bgg_id=13200 + index,
+                minplayers=minimum,
+                maxplayers=maximum,
+                suggested_players=(
+                    {"numplayers": "2", "best": 100, "recommended": 100},
+                ),
+            )
+            games[label] = BoardGameFactory(metadata=metadata)
+        local_only = BoardGameFactory(metadata=None)
+
+        expected = {
+            "1": {games["solo"].pk, games["one_to_four"].pk},
+            "2": {
+                games["one_to_four"].pk,
+                games["two_to_five"].pk,
+            },
+            "3": {games["one_to_four"].pk, games["two_to_five"].pk},
+            "4": {
+                games["one_to_four"].pk,
+                games["two_to_five"].pk,
+            },
+            "5_plus": {
+                games["two_to_five"].pk,
+                games["five_to_eight"].pk,
+            },
+        }
+        for selected, expected_pks in expected.items():
+            with self.subTest(selected=selected):
+                filtered = self.make_filter(
+                    OfficialPlayerCountFilter,
+                    {"official_players": selected},
+                ).queryset(self.request, BoardGame.objects.all())
+                self.assertEqual(
+                    set(filtered.values_list("pk", flat=True)), expected_pks
+                )
+                self.assertNotIn(
+                    local_only.pk, set(filtered.values_list("pk", flat=True))
                 )
 
     def test_rank_filter_distinguishes_present_and_missing_rank(self):
