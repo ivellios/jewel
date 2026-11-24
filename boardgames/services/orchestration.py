@@ -47,7 +47,6 @@ from boardgames.bgg import (
 )
 from boardgames.bgg.errors import (
     BGGAdapterError,
-    BGGCredentialMissingError,
     BGGNetworkError,
     BGGNotFoundError,
 )
@@ -132,35 +131,8 @@ def full_reconcile(
     try:
         collection = repository.get_collection(user_name)
         fetch_successful = True
-    except (BGGNetworkError, BGGCredentialMissingError) as exc:
-        # Collection fetch failed — never authorise removal.
-        _update_sync_run_error(
-            sync_run,
-            status=BGGSyncRunStatus.FAILED,
-            fetch_successful=False,
-            items_total=0,
-            items_fetched=0,
-            items_failed=0,
-            error_messages=[str(exc)],
-            diagnostics={
-                "error": str(exc),
-                "error_type": type(exc).__name__,
-                "elapsed_seconds": round(time.time() - start_time, 3),
-            },
-            collection_count=0,
-            imported_created=0,
-            imported_updated=0,
-            removed=0,
-            restored=0,
-        )
-        return OrchestrationResult(
-            bgg_sync_run=sync_run,
-            collection_count=0,
-            items_failed=0,
-            error_messages=[str(exc)],
-            fetch_successful=False,
-        )
     except BGGAdapterError as exc:
+        # Collection fetch failed — never authorise removal.
         _update_sync_run_error(
             sync_run,
             status=BGGSyncRunStatus.FAILED,
