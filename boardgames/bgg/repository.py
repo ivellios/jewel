@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Iterator, Sequence
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from datetime import date
-from typing import Protocol, overload
+from typing import Protocol
 
 from .adapter import (
     BGGBatchRecord,
@@ -77,8 +77,39 @@ class BGGRepository:
         **filters: object,
     ) -> Sequence[BGGCollectionRecord]:
         filters.setdefault("version", True)
-        raw_items = self._client.collection(user_name, ids=ids, **filters)
-        return _NormalizedCollection(_items(raw_items))
+        game_ids = tuple(ids) if ids is not None else None
+        records = [
+            normalize_collection_item(item)
+            for item in _items(
+                self._client.collection(user_name, ids=game_ids, **filters)
+            )
+        ]
+
+        # BGG may return a non-owned historical collection entry for a game
+        # even when a separate owned copy exists. Fetch owned entries
+        # explicitly so that the unfiltered result cannot mask that copy and
+        # its selected version.
+        if filters.get("own") is None:
+            owned_filters = {**filters, "own": True}
+            records.extend(
+                normalize_collection_item(item)
+                for item in _items(
+                    self._client.collection(
+                        user_name,
+                        ids=game_ids,
+                        **owned_filters,
+                    )
+                )
+            )
+
+        preferred_by_id: dict[int, BGGCollectionRecord] = {}
+        for record in records:
+            current = preferred_by_id.get(record.bgg_id)
+            if current is None or _collection_record_priority(
+                record
+            ) > _collection_record_priority(current):
+                preferred_by_id[record.bgg_id] = record
+        return tuple(preferred_by_id.values())
 
     def get_plays(
         self,
@@ -143,29 +174,11 @@ def _items(raw_items: object) -> Sequence[object]:
     return tuple(raw_items)
 
 
-class _NormalizedCollection(Sequence[BGGCollectionRecord]):
-    """Lazily normalize vendor items without retaining a second full list."""
+def _collection_record_priority(record: BGGCollectionRecord) -> tuple[bool, bool, str]:
+    """Prefer owned copies, selected versions, then the latest BGG record."""
 
-    def __init__(self, raw_items: Sequence[object]) -> None:
-        self._raw_items = raw_items
-
-    def __len__(self) -> int:
-        return len(self._raw_items)
-
-    def __iter__(self) -> Iterator[BGGCollectionRecord]:
-        return (normalize_collection_item(item) for item in self._raw_items)
-
-    @overload
-    def __getitem__(self, index: int) -> BGGCollectionRecord: ...
-
-    @overload
-    def __getitem__(self, index: slice) -> tuple[BGGCollectionRecord, ...]: ...
-
-    def __getitem__(
-        self, index: int | slice
-    ) -> BGGCollectionRecord | tuple[BGGCollectionRecord, ...]:
-        if isinstance(index, slice):
-            return tuple(
-                normalize_collection_item(item) for item in self._raw_items[index]
-            )
-        return normalize_collection_item(self._raw_items[index])
+    return (
+        record.owned,
+        record.version_id is not None,
+        record.last_modified or "",
+    )

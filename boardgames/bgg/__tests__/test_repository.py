@@ -3,7 +3,6 @@
 from unittest.mock import MagicMock
 
 from boardgames.bgg import BGGExpansionRecord, BGGRepository
-from boardgames.bgg import repository as repository_module
 
 
 def _repository_with(client: MagicMock, monkeypatch) -> BGGRepository:
@@ -21,7 +20,7 @@ def test_repository_normalizes_detail_and_collection_raw_items(monkeypatch):
     repository = _repository_with(client, monkeypatch)
 
     detail = repository.get_detail(42)
-    collection = repository.get_collection("player", ids=(42,), owned=True)
+    collection = repository.get_collection("player", ids=(42,), own=True)
 
     assert detail.bgg_id == 42
     assert detail.name == "Detail game"
@@ -29,26 +28,56 @@ def test_repository_normalizes_detail_and_collection_raw_items(monkeypatch):
     assert collection[0].name == "Collection game"
     assert collection[0].quantity == 2
     client.collection.assert_called_once_with(
-        "player", ids=(42,), version=True, owned=True
+        "player", ids=(42,), version=True, own=True
     )
 
 
-def test_collection_items_are_normalized_lazily(monkeypatch):
+def test_collection_prefers_owned_copy_and_selected_version(monkeypatch):
     client = MagicMock()
-    raw_items = [
-        {"id": str(bgg_id), "name": f"Game {bgg_id}"} for bgg_id in range(1, 4)
+    client.collection.side_effect = [
+        [
+            {
+                "id": "97786",
+                "name": "Small World Underground",
+                "owned": False,
+                "prev_owned": True,
+                "lastmodified": "2026-11-24 09:27:34",
+            }
+        ],
+        [
+            {
+                "id": "97786",
+                "name": "Small World: Podziemia",
+                "owned": True,
+                "lastmodified": "2026-11-24 09:27:37",
+                "version": {
+                    "id": "280534",
+                    "name": "Polish edition",
+                    "language": "Polish",
+                    "year": "2016",
+                    "publisher": "Rebel Sp. z o.o.",
+                },
+            }
+        ],
     ]
-    client.collection.return_value = raw_items
     repository = _repository_with(client, monkeypatch)
-    normalize = MagicMock(wraps=repository_module.normalize_collection_item)
-    monkeypatch.setattr(repository_module, "normalize_collection_item", normalize)
 
-    collection = repository.get_collection("player")
+    collection = repository.get_collection("player", ids=(97786,))
 
-    assert len(collection) == 3
-    assert normalize.call_count == 0
-    assert next(iter(collection)).bgg_id == 1
-    assert normalize.call_count == 1
+    assert len(collection) == 1
+    assert collection[0].owned is True
+    assert collection[0].version_id == 280534
+    assert collection[0].version_name == "Polish edition"
+    assert collection[0].version_language == "Polish"
+    assert client.collection.call_args_list[0].kwargs == {
+        "ids": (97786,),
+        "version": True,
+    }
+    assert client.collection.call_args_list[1].kwargs == {
+        "ids": (97786,),
+        "version": True,
+        "own": True,
+    }
 
 
 def test_get_details_uses_bgg_multi_id_endpoint(monkeypatch):
