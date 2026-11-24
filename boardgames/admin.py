@@ -269,6 +269,7 @@ class BoardGameAdmin(admin.ModelAdmin):
             {
                 "fields": (
                     "metadata_link",
+                    "collection_id",
                     "bgg_plays",
                     "bgg_rating",
                     "bgg_playing_time",
@@ -289,6 +290,7 @@ class BoardGameAdmin(admin.ModelAdmin):
     # Source/ownership/state fields: read-only, visible for reference.
     readonly_fields = [
         "metadata",
+        "collection_id",
         "imported",
         "owned",
         "removed",

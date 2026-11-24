@@ -80,6 +80,32 @@ def test_collection_prefers_owned_copy_and_selected_version(monkeypatch):
     }
 
 
+def test_collection_keeps_multiple_owned_entries_for_one_game(monkeypatch):
+    client = MagicMock()
+    client.collection.return_value = [
+        {
+            "id": 14996,
+            "collid": 1001,
+            "owned": True,
+            "version": {"id": 2001, "name": "English", "language": "English"},
+        },
+        {
+            "id": 14996,
+            "collid": 1002,
+            "owned": True,
+            "version": {"id": 2002, "name": "Polish", "language": "Polish"},
+        },
+    ]
+    repository = _repository_with(client, monkeypatch)
+
+    collection = repository.get_collection("player", own=True)
+
+    assert [(item.collection_id, item.version_language) for item in collection] == [
+        (1001, "English"),
+        (1002, "Polish"),
+    ]
+
+
 def test_get_details_uses_bgg_multi_id_endpoint(monkeypatch):
     client = MagicMock()
     client.game_list.return_value = [{"id": "42"}, {"id": "43"}]

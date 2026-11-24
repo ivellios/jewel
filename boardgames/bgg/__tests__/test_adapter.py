@@ -140,6 +140,10 @@ def test_collection_normalizes_missing_values_and_quantity():
     assert record.users_rated is None
 
 
+def test_collection_normalizes_collection_entry_id():
+    assert normalize_collection_item({"id": 42, "collid": "9876"}).collection_id == 9876
+
+
 def test_collection_normalizes_selected_owned_version():
     record = normalize_collection_item(
         {

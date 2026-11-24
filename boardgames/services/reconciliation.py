@@ -8,8 +8,7 @@ authoritative collection, not merely the current batch.
 
 This service:
 
-* Finds or creates one imported ``BoardGame`` per distinct ``bgg_id``
-  from the collection input — never duplicates on quantity.
+* Finds or creates one imported ``BoardGame`` per BGG collection entry.
 * Preserves all local fields (name, language, edition_label,
   notes, review, played, play_priority, condition, storage,
   purchase_date).
@@ -103,48 +102,50 @@ def reconcile(
         after a complete collection run.
     """
 
-    bgg_to_record: dict[int, BGGCollectionRecord] = {}
-
-    for record in collection:
-        bgg_to_record[record.bgg_id] = record
-    owned_ids = {bgg_id for bgg_id, record in bgg_to_record.items() if record.owned}
+    records = tuple(collection)
+    seen_collection_ids = {
+        record.collection_id for record in records if record.collection_id is not None
+    }
+    seen_game_ids = {record.bgg_id for record in records}
 
     with transaction.atomic():
-        imported_copies = _find_target_copies(owned_ids, complete=complete)
+        imported_copies = _find_target_copies(seen_game_ids, complete=complete)
+        _backfill_collection_identity(imported_copies, records)
         result = ReconciliationResult()
 
-        for bgg_id, record in bgg_to_record.items():
+        for record in records:
             # Keep observations for all BGG collection statuses, but only
             # represent explicitly owned items as local collection copies.
             _upsert_observation(record, sync_run=sync_run)
-            if not record.owned:
-                continue
-
-            # Find the first matching copy (by bgg_id) among all imported copies.
-            # Copies with metadata=None (failed detail fetch) are skipped here
-            # — they can never match an existing copy because they have no
-            # BGGMetadata FK to link against.
-            matching = next(
-                (
-                    c
-                    for c in imported_copies
-                    if c.metadata and c.metadata.bgg_id == bgg_id
-                ),
-                None,
-            )
+            matching = _match_copy(imported_copies, record)
 
             if matching:
-                # Already imported — update ownership, keep local fields.
-                restored = _update_copy(matching, record)
-                result.imported_updated.append(matching)
-                if restored:
-                    result.restored.append(matching)
-            else:
+                matching.collection_id = record.collection_id or matching.collection_id
+                matching.last_seen_sync_run = sync_run
+                if record.owned:
+                    restored = _update_copy(matching, record)
+                    result.imported_updated.append(matching)
+                    if restored:
+                        result.restored.append(matching)
+                    matching.save(update_fields=["collection_id", "last_seen_sync_run"])
+                elif not matching.removed:
+                    _soft_remove(matching)
+                    matching.collection_id = (
+                        record.collection_id or matching.collection_id
+                    )
+                    matching.last_seen_sync_run = sync_run
+                    matching.save(update_fields=["collection_id", "last_seen_sync_run"])
+                    result.removed.append(matching)
+            elif record.owned:
                 # New imported copies require canonical metadata. A failed
                 # detail fetch without it is retried on the next sync rather
                 # than creating an anonymous imported row.
                 new_copy = _create_copy(record)
                 if new_copy is not None:
+                    new_copy.collection_id = record.collection_id
+                    new_copy.last_seen_sync_run = sync_run
+                    new_copy.save(update_fields=["collection_id", "last_seen_sync_run"])
+                    imported_copies.append(new_copy)
                     result.imported_created.append(new_copy)
 
         # Handle removal when complete.
@@ -152,30 +153,47 @@ def reconcile(
             for copy in imported_copies:
                 if copy.metadata is None:
                     continue
-                bgg_id = copy.metadata.bgg_id
-                # Locally-owned (imported=False) copies are never selected.
-                if bgg_id not in owned_ids and not copy.removed:
+                observed = (
+                    copy.collection_id in seen_collection_ids
+                    if seen_collection_ids and copy.collection_id is not None
+                    else copy.metadata.bgg_id in seen_game_ids
+                )
+                if not observed and not copy.removed:
                     _soft_remove(copy)
                     result.removed.append(copy)
 
     return result
 
 
+def backfill_collection_identities(
+    collection: Iterable[BGGCollectionRecord],
+) -> None:
+    """Match legacy imported copies against all entries before item processing."""
+    records = tuple(collection)
+    game_ids = {record.bgg_id for record in records}
+    if not game_ids:
+        return
+    copies = list(
+        BoardGame.objects.filter(
+            imported=True, metadata__bgg_id__in=game_ids
+        ).select_related("metadata")
+    )
+    with transaction.atomic():
+        _backfill_collection_identity(copies, records)
+
+
 def remove_missing_imports(sync_run: BGGSyncRun) -> int:
     """Soft-remove imports not observed by this complete sync run.
 
-    Collection observations are written as each item is processed, avoiding
-    the need to retain the full collection in memory for the final comparison.
+    Reconciliation marks each observed copy with the current run, avoiding the
+    need to retain the full collection in memory for the final comparison.
     Call only after every collection item was fetched and persisted.
     """
 
     with transaction.atomic():
         return (
             BoardGame.objects.filter(imported=True, removed=False)
-            .exclude(
-                metadata__collection_observation__sync_run=sync_run,
-                metadata__collection_observation__owned=True,
-            )
+            .exclude(last_seen_sync_run=sync_run)
             .update(removed=True, owned=False)
         )
 
@@ -200,6 +218,83 @@ def _find_target_copies(
     if not complete:
         copies = copies.filter(metadata__bgg_id__in=collected_ids)
     return list(copies.select_related("metadata"))
+
+
+def _match_copy(
+    copies: list[BoardGame], record: BGGCollectionRecord
+) -> BoardGame | None:
+    if record.collection_id is not None:
+        exact = next(
+            (c for c in copies if c.collection_id == record.collection_id), None
+        )
+        if exact is not None:
+            return exact
+    # Associate pre-existing imported rows with the first corresponding BGG
+    # entry when collection IDs are introduced.
+    legacy = [
+        c
+        for c in copies
+        if c.metadata
+        and c.metadata.bgg_id == record.bgg_id
+        and (c.collection_id is None or record.collection_id is None)
+    ]
+    if record.collection_id is None or not legacy:
+        return legacy[0] if legacy else None
+    # During the first sync after adding collection IDs, associate the legacy
+    # row with the most likely edition before falling back to response order.
+    return max(
+        legacy,
+        key=lambda copy: (
+            bool(
+                record.version_language
+                and copy.language
+                and record.version_language.casefold() == copy.language.casefold()
+            ),
+            bool(
+                record.version_name
+                and copy.edition_label
+                and record.version_name.casefold() == copy.edition_label.casefold()
+            ),
+        ),
+    )
+
+
+def _backfill_collection_identity(
+    copies: list[BoardGame], records: tuple[BGGCollectionRecord, ...]
+) -> None:
+    """Bind legacy imported rows to their best matching BGG entry before sync."""
+    claimed_ids = {copy.collection_id for copy in copies if copy.collection_id}
+    for copy in copies:
+        if copy.collection_id is not None or copy.metadata is None:
+            continue
+        candidates = [
+            record
+            for record in records
+            if record.bgg_id == copy.metadata.bgg_id
+            and record.collection_id is not None
+            and record.collection_id not in claimed_ids
+        ]
+        if not candidates:
+            continue
+        match = max(
+            candidates,
+            key=lambda record: (
+                bool(
+                    record.version_language
+                    and copy.language
+                    and record.version_language.casefold() == copy.language.casefold()
+                ),
+                bool(
+                    record.version_name
+                    and copy.edition_label
+                    and record.version_name.casefold() == copy.edition_label.casefold()
+                ),
+            ),
+        )
+        copy.collection_id = match.collection_id
+        copy.save(update_fields=["collection_id"])
+        if match.collection_id is not None:
+            claimed_ids.add(match.collection_id)
 
 
 def _update_copy(copy: BoardGame, record: BGGCollectionRecord) -> bool:
@@ -255,6 +350,7 @@ def _create_copy(record: BGGCollectionRecord) -> BoardGame | None:
         name=record.localized_title or metadata.name or record.name,
         language=record.version_language,
         edition_label=record.version_name,
+        collection_id=record.collection_id,
         imported=True,
         owned=record.owned,
     )

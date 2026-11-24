@@ -102,13 +102,14 @@ class BGGRepository:
                 )
             )
 
-        preferred_by_id: dict[int, BGGCollectionRecord] = {}
+        preferred_by_id: dict[tuple[int, int | None], BGGCollectionRecord] = {}
         for record in records:
-            current = preferred_by_id.get(record.bgg_id)
+            key = (record.bgg_id, record.collection_id)
+            current = preferred_by_id.get(key)
             if current is None or _collection_record_priority(
                 record
             ) > _collection_record_priority(current):
-                preferred_by_id[record.bgg_id] = record
+                preferred_by_id[key] = record
         return tuple(preferred_by_id.values())
 
     def get_plays(

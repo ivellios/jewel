@@ -3,7 +3,9 @@
 from django.db.utils import IntegrityError
 from django.test import TestCase
 
+from boardgames.bgg import BGGExpansionRelations
 from boardgames.models import BGGExpansion, BGGMetadata
+from boardgames.services.canonical_upsert import synchronize_expansion_links
 
 
 class BGGExpansionModelTest(TestCase):
@@ -188,3 +190,50 @@ class BGGExpansionModelTest(TestCase):
 
         base.delete()
         self.assertEqual(BGGExpansion.objects.count(), 0)
+
+
+class ExpansionLinkSyncTest(TestCase):
+    def test_owned_expansion_links_when_other_parents_are_not_in_collection(self):
+        base = BGGMetadata.objects.create(bgg_id=192135, name="Too Many Bones")
+        expansion = BGGMetadata.objects.create(bgg_id=224897, name="Nugget")
+        other_expansion = BGGMetadata.objects.create(
+            bgg_id=239292, name="40 Days in Daelore"
+        )
+        BGGExpansion.objects.create(expansion=other_expansion, parent=base)
+
+        records = (
+            BGGExpansionRelations(
+                bgg_id=base.bgg_id,
+                expansions=(expansion.bgg_id, other_expansion.bgg_id),
+                expands=(),
+            ),
+            BGGExpansionRelations(
+                bgg_id=expansion.bgg_id,
+                expansions=(),
+                expands=(base.bgg_id, 347811, 235802),
+            ),
+        )
+
+        synchronize_expansion_links(records, (base.bgg_id, expansion.bgg_id))
+
+        self.assertTrue(
+            BGGExpansion.objects.filter(expansion=expansion, parent=base).exists()
+        )
+        # Existing links to unowned but BGG-related entries remain intact.
+        self.assertTrue(
+            BGGExpansion.objects.filter(expansion=other_expansion, parent=base).exists()
+        )
+
+        updated_records = (
+            BGGExpansionRelations(
+                bgg_id=base.bgg_id,
+                expansions=(expansion.bgg_id,),
+                expands=(),
+            ),
+            records[1],
+        )
+        synchronize_expansion_links(updated_records, (base.bgg_id, expansion.bgg_id))
+
+        self.assertFalse(
+            BGGExpansion.objects.filter(expansion=other_expansion, parent=base).exists()
+        )

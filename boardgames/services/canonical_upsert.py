@@ -148,12 +148,12 @@ def synchronize_expansion_links(
 ) -> list[BGGExpansion]:
     """Synchronize relationships from a complete authoritative collection.
 
-    Both endpoints must occur in the collection and have canonical metadata.
-    If a record references an absent endpoint, it is not authoritative for
-    relationship removals from that source. A complete record with eligible
-    endpoints replaces its owned links, so stale links are deleted only during
-    a fully successful collection sync. ``expansions`` owns its parent-side
-    links and ``expands`` owns its expansion-side links.
+    Each relation is independent: a listed expansion is linked when both that
+    game and its parent are in the collection, without requiring the user to
+    own the expansion's other parents. Complete source records authoritatively
+    replace their own links, so stale links are deleted only during a fully
+    successful sync. ``expansions`` owns parent-side links and ``expands`` owns
+    expansion-side links.
     """
     record_list = tuple(records)
     eligible_ids = set(authoritative_ids)
@@ -161,26 +161,24 @@ def synchronize_expansion_links(
     if set(records_by_id) != eligible_ids:
         return []
 
-    metadata_by_id = BGGMetadata.objects.in_bulk(eligible_ids, field_name="bgg_id")
-    if set(metadata_by_id) != eligible_ids:
+    related_ids = set(eligible_ids)
+    for record in record_list:
+        related_ids.update(record.expansions)
+        related_ids.update(record.expands)
+    metadata_by_id = BGGMetadata.objects.in_bulk(related_ids, field_name="bgg_id")
+    if not eligible_ids <= set(metadata_by_id):
         return []
 
     expected_pairs: set[tuple[int, int]] = set()
-    parent_sources: set[int] = set()
-    expansion_sources: set[int] = set()
+    parent_sources = set(eligible_ids)
+    expansion_sources = set(eligible_ids)
     for record in record_list:
         expansion_ids = set(record.expansions) - {record.bgg_id}
         parent_ids = set(record.expands) - {record.bgg_id}
-        if expansion_ids <= eligible_ids:
-            parent_sources.add(record.bgg_id)
-            expected_pairs.update(
-                (expansion_id, record.bgg_id) for expansion_id in expansion_ids
-            )
-        if parent_ids <= eligible_ids:
-            expansion_sources.add(record.bgg_id)
-            expected_pairs.update(
-                (record.bgg_id, parent_id) for parent_id in parent_ids
-            )
+        expected_pairs.update(
+            (expansion_id, record.bgg_id) for expansion_id in expansion_ids
+        )
+        expected_pairs.update((record.bgg_id, parent_id) for parent_id in parent_ids)
 
     with transaction.atomic():
         parent_source_pks = [metadata_by_id[bgg_id].pk for bgg_id in parent_sources]
@@ -202,11 +200,18 @@ def synchronize_expansion_links(
         existing_pairs = {
             (link.expansion.bgg_id, link.parent.bgg_id)
             for link in BGGExpansion.objects.filter(
-                expansion__bgg_id__in=eligible_ids,
-                parent__bgg_id__in=eligible_ids,
+                expansion__bgg_id__in=related_ids,
+                parent__bgg_id__in=related_ids,
             )
         }
-        new_pairs = expected_pairs - existing_pairs
+        new_pairs = {
+            pair
+            for pair in expected_pairs
+            if pair[0] in eligible_ids
+            and pair[1] in eligible_ids
+            and pair[0] in metadata_by_id
+            and pair[1] in metadata_by_id
+        } - existing_pairs
         BGGExpansion.objects.bulk_create(
             [
                 BGGExpansion(
@@ -219,8 +224,7 @@ def synchronize_expansion_links(
 
     return list(
         BGGExpansion.objects.filter(
-            expansion__bgg_id__in=eligible_ids,
-            parent__bgg_id__in=eligible_ids,
+            Q(parent__bgg_id__in=eligible_ids) | Q(expansion__bgg_id__in=eligible_ids)
         ).select_related("expansion", "parent")
     )
 

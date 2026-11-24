@@ -59,7 +59,11 @@ from boardgames.services.canonical_upsert import (
     synchronize_expansion_links,
     upsert_detail,
 )
-from boardgames.services.reconciliation import reconcile, remove_missing_imports
+from boardgames.services.reconciliation import (
+    backfill_collection_identities,
+    reconcile,
+    remove_missing_imports,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -186,6 +190,7 @@ def full_reconcile(
 
     # Fetch succeeded.
     collection_count = len(collection)
+    backfill_collection_identities(collection)
     if progress_callback is not None:
         progress_callback(0, collection_count)
 

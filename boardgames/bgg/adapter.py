@@ -110,6 +110,7 @@ class BGGCollectionRecord:
     rating_median: float | None
     rating_stddev: float | None
     users_rated: int | None
+    collection_id: int | None = None
     quantity: int = 0
     version_id: int | None = None
     version_name: str | None = None
@@ -211,6 +212,7 @@ def normalize_collection_item(raw: RawResponse) -> BGGCollectionRecord:
     version = _value(raw, "version")
     return BGGCollectionRecord(
         bgg_id=_required_id(raw),
+        collection_id=_integer(_value(raw, "collection_id", "collid")),
         name=_text(_value(raw, "name")),
         rating=_integer(_value(raw, "rating")),
         numplays=_non_negative_integer(_value(raw, "numplays")),

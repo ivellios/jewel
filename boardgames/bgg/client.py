@@ -10,6 +10,7 @@ from __future__ import annotations
 from collections.abc import Iterable
 from datetime import date
 from typing import Any
+from xml.etree import ElementTree
 
 from boardgamegeek import (
     BGGApiError,
@@ -18,6 +19,7 @@ from boardgamegeek import (
     BGGItemNotFoundError,
 )
 from boardgamegeek import BGGClient as BoardGameGeekClient
+from boardgamegeek.api import Collection, add_collection_items_from_xml
 from boardgamegeek.loaders.game import create_game_from_xml
 from boardgamegeek.utils import request_and_parse_xml
 
@@ -71,19 +73,79 @@ class BGGClient:
     ) -> Any:
         """Return the raw collection item responses.
 
-        The vendor collection wrapper keeps its entries in a private
-        ``_items`` attribute.  Extracting it here keeps that vendor detail in
-        the transport boundary while leaving repository callers with only raw
-        item objects to normalize.
+        The vendor collection wrapper deduplicates by game ID. Parse each XML
+        item separately so editions retain their distinct BGG collection IDs.
         """
-        collection = self._call(
-            user_name,
-            self._client.collection,
-            user_name=user_name,
-            ids=list(ids) if ids else None,
-            **filters,
-        )
-        return collection._items
+        # The vendor Collection object deduplicates by game ID, but BGG allows
+        # multiple collection entries (and editions) for the same game.
+        subtype = str(filters.get("subtype", "boardgame"))
+        params: dict[str, object] = {
+            "username": user_name,
+            "subtype": subtype,
+            "stats": 1,
+        }
+        if ids is not None:
+            params["id"] = ",".join(map(str, ids))
+        filter_parameters = {
+            "exclude_subtype": "excludesubtype",
+            "version": "version",
+            "own": "own",
+            "rated": "rated",
+            "played": "played",
+            "commented": "comment",
+            "trade": "trade",
+            "want": "want",
+            "wishlist": "wishlist",
+            "wishlist_prio": "wishlishpriority",
+            "preordered": "preordered",
+            "want_to_play": "wanttoplay",
+            "want_to_buy": "wanttobuy",
+            "prev_owned": "prevowned",
+            "has_parts": "hasparts",
+            "want_parts": "wantparts",
+            "min_rating": "minrating",
+            "rating": "rating",
+            "min_bgg_rating": "minbggrating",
+            "bgg_rating": "bggrating",
+            "min_plays": "minplays",
+            "max_plays": "maxplays",
+            "collection_id": "collid",
+            "modified_since": "modifiedsince",
+        }
+        if filters.get("version") is None and filters.get("versions") is not None:
+            filter_parameters["versions"] = "version"
+        for key, parameter in filter_parameters.items():
+            value = filters.get(key)
+            if value is not None:
+                params[parameter] = int(value) if isinstance(value, bool) else value
+        try:
+            root = request_and_parse_xml(
+                self._client.requests_session,
+                self._client._collection_api_url,
+                params=params,
+                timeout=self._timeout,
+                retries=self._client._retries,
+                retry_delay=self._client._retry_delay,
+                headers=self._client._get_auth_headers(),
+            )
+            error = root.find(".//error")
+            if error is not None:
+                raise BGGItemNotFoundError(
+                    error.findtext("message") or "BGG collection not found"
+                )
+            records = []
+            for item in root.findall(f"item[@subtype='{subtype}']"):
+                single_item = ElementTree.Element("items")
+                single_item.append(item)
+                collection = Collection({"owner": user_name})
+                add_collection_items_from_xml(collection, single_item, subtype)
+                if collection.items:
+                    record = collection.items[0]
+                    record._data["collection_id"] = item.attrib.get("collid")
+                    records.append(record)
+            return records
+        except BGGError as exc:
+            self._raise_mapped_error(exc, user_name)
 
     def plays(
         self,

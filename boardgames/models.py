@@ -254,9 +254,8 @@ class BoardGame(CollectionItem):
     - ``condition``, ``storage``, ``purchase_date`` -- copy-specific
       physical details.
     - ``imported`` -- ``True`` when the row was created by a BGG
-      import/sync; ``False`` for local/manual rows.  There is at most one
-      imported copy per BGG metadata record; local/manual copies may share
-      that metadata record.
+      import/sync; ``False`` for local/manual rows. ``collection_id`` links
+      imported copies to individual BGG collection entries.
     - ``owned`` -- explicit ownership flag (no inference).
     - ``removed`` -- reversible removal flag (no cascade or
       hard-delete side effects).  One BoardGame row = one local copy.
@@ -323,6 +322,18 @@ class BoardGame(CollectionItem):
         verbose_name="BGG-imported",
         help_text="True when created by a BGG import/sync run.",
     )
+    collection_id = models.PositiveBigIntegerField(
+        null=True,
+        blank=True,
+        help_text="BGG collection entry ID identifying this particular copy.",
+    )
+    last_seen_sync_run = models.ForeignKey(
+        BGGSyncRun,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="seen_board_game_copies",
+    )
     owned = models.BooleanField(
         default=False,
         db_index=True,
@@ -346,9 +357,9 @@ class BoardGame(CollectionItem):
                 name="boardgames_imported_copy_requires_metadata",
             ),
             models.UniqueConstraint(
-                fields=["metadata"],
-                condition=models.Q(imported=True),
-                name="boardgames_one_imported_copy_per_metadata",
+                fields=["collection_id"],
+                condition=models.Q(imported=True, collection_id__isnull=False),
+                name="boardgames_unique_imported_collection_entry",
             ),
         ]
 

@@ -184,14 +184,47 @@ def test_game_list_two_games_with_and_without_summary(
     assert result[1].get("suggested_numplayers") is None
 
 
-def test_collection_returns_raw_items_not_the_vendor_wrapper(vendor_client, token):
+def test_collection_preserves_distinct_entries_for_the_same_game(
+    vendor_client, token, monkeypatch
+):
     vendor, _ = vendor_client
-    raw_item = object()
-    vendor.collection.return_value = MagicMock(_items=(raw_item,))
-    client = BGGClient(access_token=token)
+    vendor._retries = 1
+    vendor._retry_delay = 0
+    xml = ElementTree.fromstring(  # noqa: S314 - trusted inline test fixture.
+        """
+        <items>
+          <item objectid="14996" subtype="boardgame" collid="1001">
+            <name>Ticket to Ride: Europe</name><yearpublished>2021</yearpublished>
+            <status own="1" prevowned="0" />
+            <stats minplayers="2" maxplayers="5" minplaytime="30"
+                   maxplaytime="60" playingtime="60"><rating value="7.5"
+                   usersrated="10" average="7.5" bayesaverage="7.4"
+                   stddev="1" median="0"><ranks /></rating></stats>
+            <version><item type="boardgameversion" id="2001"><name>English</name>
+              <link type="language" id="1" value="English" /></item></version>
+          </item>
+          <item objectid="14996" subtype="boardgame" collid="1002">
+            <name>Ticket to Ride: Europe</name><yearpublished>2021</yearpublished>
+            <status own="1" prevowned="0" />
+            <stats minplayers="2" maxplayers="5" minplaytime="30"
+                   maxplaytime="60" playingtime="60"><rating value="7.5"
+                   usersrated="10" average="7.5" bayesaverage="7.4"
+                   stddev="1" median="0"><ranks /></rating></stats>
+            <version><item type="boardgameversion" id="2002"><name>Polish</name>
+              <link type="language" id="2" value="Polish" /></item></version>
+          </item>
+        </items>
+        """
+    )
+    monkeypatch.setattr(
+        "boardgames.bgg.client.request_and_parse_xml", lambda *a, **k: xml
+    )
 
-    assert list(client.collection("player")) == [raw_item]
-    vendor.collection.assert_called_once_with(user_name="player", ids=None)
+    records = BGGClient(access_token=token).collection("player", version=True)
+
+    assert len(records) == 2
+    assert [item._data["collection_id"] for item in records] == ["1001", "1002"]
+    assert [item.version.id for item in records] == [2001, 2002]
 
 
 def test_missing_credential_is_a_jewel_error():

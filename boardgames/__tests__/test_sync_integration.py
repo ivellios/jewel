@@ -19,6 +19,7 @@ Scenarios covered:
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 from unittest.mock import MagicMock, patch
 
 from django.test import TestCase
@@ -276,15 +277,15 @@ class RepeatedImportTest(TestCase):
 # -----------------------------------------------------------------------
 
 
-class QuantityNoDuplicationTest(TestCase):
-    """Multiple collection entries with the same bgg_id → one BoardGame."""
+class CopyIdentityTest(TestCase):
+    """BGG collection entry IDs, not game IDs, identify imported copies."""
 
-    def test_same_bg_id_single_copy(self):
-        """Two collection records with same bgg_id → one BoardGame."""
+    def test_same_game_with_distinct_entries_creates_two_copies(self):
+        """Distinct BGG collection IDs produce separate local copies."""
 
         collection = (
-            collection_record(bgg_id=910040, owned=True),
-            collection_record(bgg_id=910040, owned=True),
+            replace(collection_record(bgg_id=910040), collection_id=1001),
+            replace(collection_record(bgg_id=910040), collection_id=1002),
         )
         adapter = _make_adapter(collection)
 
@@ -292,15 +293,46 @@ class QuantityNoDuplicationTest(TestCase):
 
         self.assertEqual(
             BoardGame.objects.filter(imported=True, metadata__bgg_id=910040).count(),
-            1,
+            2,
+        )
+
+    def test_existing_copy_is_matched_against_full_collection_before_import(self):
+        metadata = BGGMetadataFactory(bgg_id=910042, name="Ticket to Ride: Europe")
+        existing = BoardGame.objects.create(
+            metadata=metadata,
+            name="Ticket to Ride: Europe",
+            language="English",
+            edition_label="English edition",
+            imported=True,
+            owned=True,
+        )
+        polish = replace(
+            collection_record(bgg_id=910042),
+            collection_id=1042,
+            version_name="Polish edition",
+            version_language="Polish",
+        )
+        english = replace(
+            collection_record(bgg_id=910042),
+            collection_id=1041,
+            version_name="English edition",
+            version_language="English",
+        )
+
+        _run_with_upsert_patch(_make_adapter((polish, english)), "importer")
+
+        existing.refresh_from_db()
+        self.assertEqual(existing.collection_id, 1041)
+        self.assertEqual(
+            BoardGame.objects.filter(metadata=metadata, imported=True).count(), 2
         )
 
     def test_last_non_owned_entry_does_not_create_a_local_copy(self):
-        """The last collection observation determines ownership membership."""
+        """A particular entry becoming unowned soft-removes that copy."""
 
         collection = (
-            collection_record(bgg_id=910041, owned=True),
-            collection_record(bgg_id=910041, owned=False),
+            replace(collection_record(bgg_id=910041, owned=True), collection_id=1003),
+            replace(collection_record(bgg_id=910041, owned=False), collection_id=1003),
         )
         adapter = _make_adapter(collection)
 

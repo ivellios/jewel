@@ -81,6 +81,93 @@ class DistinctIdCreatesDistinctCopiesTest(TestCase):
         observation = BGGCollectionObservation.objects.get(metadata__bgg_id=900003)
         self.assertEqual(observation.quantity, 3)
 
+    def test_distinct_owned_collection_entries_create_distinct_editions(self):
+        metadata = BGGMetadataFactory(bgg_id=900011, name="Ticket to Ride: Europe")
+        english = replace(
+            collection_record(bgg_id=900011),
+            collection_id=1001,
+            version_id=2001,
+            version_name="English edition",
+            version_language="English",
+        )
+        polish = replace(
+            collection_record(bgg_id=900011),
+            collection_id=1002,
+            version_id=2002,
+            version_name="Polish edition",
+            version_language="Polish",
+            localized_title="Wsiąść do Pociągu: Europa",
+        )
+
+        result = reconcile([english, polish])
+
+        copies = BoardGame.objects.filter(metadata=metadata, imported=True).order_by(
+            "collection_id"
+        )
+        self.assertEqual(len(result.imported_created), 2)
+        self.assertEqual(
+            list(copies.values_list("collection_id", "language")),
+            [(1001, "English"), (1002, "Polish")],
+        )
+
+    def test_legacy_copy_matches_its_edition_before_creating_another(self):
+        metadata = BGGMetadataFactory(bgg_id=900012, name="Ticket to Ride: Europe")
+        existing_english = BoardGameFactory(
+            metadata=metadata,
+            imported=True,
+            name="Ticket to Ride: Europe",
+            language="English",
+            edition_label="English edition",
+        )
+        polish = replace(
+            collection_record(bgg_id=900012),
+            collection_id=1012,
+            version_name="Polish edition",
+            version_language="Polish",
+        )
+        english = replace(
+            collection_record(bgg_id=900012),
+            collection_id=1011,
+            version_name="English edition",
+            version_language="English",
+        )
+
+        reconcile([polish, english])
+
+        existing_english.refresh_from_db()
+        self.assertEqual(existing_english.collection_id, 1011)
+        self.assertEqual(
+            BoardGame.objects.filter(metadata=metadata, imported=True).count(), 2
+        )
+
+    def test_unowning_one_edition_preserves_the_other_edition(self):
+        metadata = BGGMetadataFactory(bgg_id=900013, name="Ticket to Ride: Europe")
+        reconcile(
+            [
+                replace(collection_record(bgg_id=900013), collection_id=1013),
+                replace(collection_record(bgg_id=900013), collection_id=1014),
+            ]
+        )
+
+        reconcile(
+            [
+                replace(
+                    collection_record(bgg_id=900013, owned=False),
+                    collection_id=1013,
+                ),
+                replace(collection_record(bgg_id=900013), collection_id=1014),
+            ],
+            complete=True,
+        )
+
+        copies = BoardGame.objects.filter(metadata=metadata, imported=True).order_by(
+            "collection_id"
+        )
+        self.assertEqual(
+            list(copies.values_list("collection_id", "owned", "removed")),
+            [(1013, False, True), (1014, True, False)],
+        )
+
     def test_new_imported_copy_snapshots_canonical_name(self):
         """New imported copies keep their initial BGG name as a local value."""
 
