@@ -310,6 +310,25 @@ def _required_positive_id(value: int) -> int:
 
 def _stat(raw: RawResponse, stats: object | None, field: str) -> object | None:
     value = _value(stats, field) if stats is not None else None
+    if value is None and stats is not None:
+        vendor_names = {
+            "rating_average": "average",
+            "rating_bayes_average": "bayesaverage",
+            "rating_median": "median",
+            "rating_stddev": "stddev",
+            "rating_num_weights": "numweights",
+            "users_rated": "usersrated",
+        }
+        vendor_name = vendor_names.get(field)
+        if vendor_name is not None:
+            value = _value(stats, vendor_name)
+        elif field == "boardgame_rank":
+            ranks = _value(stats, "ranks")
+            if isinstance(ranks, Iterable) and not isinstance(ranks, str | bytes):
+                for rank in ranks:
+                    if _value(rank, "name") == "boardgame":
+                        value = _value(rank, "value")
+                        break
     return value if value is not None else _value(raw, field)
 
 

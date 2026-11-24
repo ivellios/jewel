@@ -60,6 +60,34 @@ def test_detail_normalizes_values_and_relations_without_io():
     )
 
 
+def test_detail_normalizes_vendor_stats_shape_from_batch_client():
+    record = normalize_detail(
+        {
+            "id": "13",
+            "stats": {
+                "usersrated": 145250,
+                "average": 7.0899,
+                "bayesaverage": 6.90112,
+                "stddev": 1.50686,
+                "median": 0,
+                "numweights": 8657,
+                "ranks": [
+                    {"id": "1", "name": "boardgame", "value": 624},
+                    {"id": "5497", "name": "strategygames", "value": 598},
+                ],
+            },
+        }
+    )
+
+    assert record.rating_average == 7.0899
+    assert record.rating_bayes_average == 6.90112
+    assert record.rating_stddev == 1.50686
+    assert record.rating_median == 0
+    assert record.rating_num_weights == 8657
+    assert record.users_rated == 145250
+    assert record.boardgame_rank == 624
+
+
 def test_detail_normalizes_localized_version_titles():
     record = normalize_detail(
         {
