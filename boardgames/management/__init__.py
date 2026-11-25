@@ -1,0 +1,1 @@
+"""Boardgames management command layer."""

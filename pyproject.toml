@@ -18,6 +18,7 @@ dependencies = [
     "requests>=2.33.0",
     "tqdm==4.66.3",
     "uwsgi>=2.0.30",
+    "bgg-api>=1.1.0",
 ]
 
 [project.optional-dependencies]
@@ -134,6 +135,7 @@ strict_optional = true
 exclude = [
     "games/migrations",
     "steam/migrations",
+    "boardgames/migrations",
     ".*__pycache__.*",
     ".*__tests__.*",
     ".*fixtures.*",

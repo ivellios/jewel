@@ -1,6 +1,7 @@
 from django.test import TestCase
 
-from games.models import CollectionItem, VideoGame
+from collection_core.models import CollectionItem
+from games.models import VideoGame
 
 
 class CollectionItemTestCase(TestCase):

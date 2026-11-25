@@ -51,7 +51,7 @@ jobs:
       run: uv run python manage.py check
 
     - name: Run type checking
-      run: uv run mypy --config-file pyproject.toml games csv_importer steam abstract jewel
+      run: uv run mypy --config-file pyproject.toml games csv_importer steam abstract jewel boardgames
 
     - name: Run tests
       env:
